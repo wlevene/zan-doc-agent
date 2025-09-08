@@ -13,6 +13,10 @@ import json
 
 from dify_client import DifyClient, DifyAPIError, FileInfo, ResponseMode
 
+# 导入具体的Agent实现
+from content_validator_agent import ContentValidatorAgent
+from scenario_generator_agent import ScenarioGeneratorAgent
+
 
 class AgentType(Enum):
     """Agent 类型枚举"""
@@ -50,18 +54,16 @@ class BaseAgent(ABC):
     提供了统一的接口和基础功能，确保代码的一致性和可扩展性。
     """
     
-    def __init__(self, dify_client: DifyClient, config: AgentConfig, dify_params: Optional[Dict[str, Any]] = None):
+    def __init__(self, dify_client: DifyClient, config: AgentConfig):
         """
         初始化 Agent
         
         Args:
             dify_client: Dify API 客户端实例
             config: Agent 配置信息
-            dify_params: 传递给Dify API的额外参数
         """
         self.client = dify_client
         self.config = config
-        self.dify_params = dify_params or {}
         self._validate_config()
     
     def _validate_config(self) -> None:
@@ -155,411 +157,10 @@ class BaseAgent(ABC):
         }
 
 
-class ContentValidatorAgent(BaseAgent):
-    """文案场景验收器 Agent
-    
-    专门用于验收文案内容，检查文案是否符合特定的标准和要求。
-    可以检查语法、风格、合规性等多个维度。
-    """
-    
-    def __init__(self, 
-                 endpoint: str,
-                 app_key: str,
-                 validation_criteria: Optional[List[str]] = None,
-                 dify_params: Optional[Dict[str, Any]] = None):
-        """
-        初始化文案验收器
-        
-        Args:
-            endpoint: Dify API 端点地址
-            app_key: Dify 应用密钥
-            validation_criteria: 验收标准列表
-            dify_params: 传递给Dify API的额外参数
-        """
-        # 创建 DifyClient 实例
-        dify_client = DifyClient(
-            api_key=app_key,
-            base_url=endpoint
-        )
-        self.validation_criteria = validation_criteria or [
-            "语法正确性",
-            "内容准确性", 
-            "风格一致性",
-            "合规性检查"
-        ]
-        
-        config = AgentConfig(
-            name="文案场景验收器",
-            description="专业的文案内容验收工具，支持多维度质量检查",
-            agent_type=AgentType.CONTENT_VALIDATOR,
-            default_inputs={
-                "validation_criteria": self.validation_criteria,
-                "output_format": "structured"
-            },
-            system_prompt="你是一个专业的文案验收专家，请根据提供的验收标准对文案进行全面评估。"
-        )
-        
-        super().__init__(dify_client, config, dify_params)
-    
-    def process(self, params: Dict[str, Any]) -> AgentResponse:
-        """验收文案内容
-        
-        Args:
-            params: 参数字典，包含:
-                - query: 验收要求描述（必需）
-                - inputs: 额外输入参数（可选）
-                - content_to_validate: 待验收的文案内容（可选）
-                - user: 用户标识（可选）
-            
-        Returns:
-            AgentResponse: 验收结果
-        """
-        try:
-            # 验证必需参数
-            if 'query' not in params:
-                raise ValueError("Missing required parameter: query")
-            
-            query = params['query']
-            inputs = params.get('inputs')
-            content_to_validate = params.get('content_to_validate')
-            user = params.get('user', 'content_validator')
-            
-            # 准备输入参数
-            final_inputs = self._prepare_inputs(inputs)
-            
-            # 如果提供了待验收内容，添加到输入中
-            if content_to_validate:
-                final_inputs["content_to_validate"] = content_to_validate
-            
-            # 构建查询
-            full_query = self._build_validation_query(query, content_to_validate)
-            
-            # 合并dify_params到inputs中
-            if self.dify_params:
-                final_inputs.update(self.dify_params)
-            
-            # 调用 Dify API
-            raw_response = self.client.completion_messages_blocking(
-                query=full_query,
-                inputs=final_inputs,
-                user=user
-            )
-            
-            return self._handle_response(raw_response)
-            
-        except DifyAPIError as e:
-            return AgentResponse(
-                success=False,
-                content="",
-                error_message=f"API调用失败: {str(e)}"
-            )
-        except Exception as e:
-            return AgentResponse(
-                success=False,
-                content="",
-                error_message=f"处理失败: {str(e)}"
-            )
-    
-    def process_streaming(self, params: Dict[str, Any]) -> Iterator[AgentResponse]:
-        """流式验收文案内容
-        
-        Args:
-            params: 参数字典，包含:
-                - query: 验收要求描述（必需）
-                - inputs: 额外输入参数（可选）
-                - content_to_validate: 待验收的文案内容（可选）
-                - user: 用户标识（可选）
-        
-        Yields:
-            AgentResponse: 流式验收结果
-        """
-        try:
-            # 验证必需参数
-            if 'query' not in params:
-                raise ValueError("Missing required parameter: query")
-            
-            query = params['query']
-            inputs = params.get('inputs')
-            content_to_validate = params.get('content_to_validate')
-            user = params.get('user', 'content_validator')
-            
-            # 准备输入参数
-            final_inputs = self._prepare_inputs(inputs)
-            
-            if content_to_validate:
-                final_inputs["content_to_validate"] = content_to_validate
-            
-            # 构建查询
-            full_query = self._build_validation_query(query, content_to_validate)
-            
-            # 合并dify_params到inputs中
-            if self.dify_params:
-                final_inputs.update(self.dify_params)
-            
-            # 流式调用 Dify API
-            for chunk in self.client.completion_messages_streaming(
-                query=full_query,
-                inputs=final_inputs,
-                user=user
-            ):
-                yield self._handle_response(chunk)
-                
-        except DifyAPIError as e:
-            yield AgentResponse(
-                success=False,
-                content="",
-                error_message=f"API调用失败: {str(e)}"
-            )
-        except Exception as e:
-            yield AgentResponse(
-                success=False,
-                content="",
-                error_message=f"处理失败: {str(e)}"
-            )
-    
-    def _build_validation_query(self, query: str, content: Optional[str]) -> str:
-        """构建验收查询"""
-        base_query = self._build_query(query)
-        
-        if content:
-            return f"{base_query}\n\n待验收内容：\n{content}"
-        
-        return base_query
-    
-    def validate_batch(self, 
-                      contents: List[str], 
-                      criteria: Optional[str] = None) -> List[AgentResponse]:
-        """批量验收文案
-        
-        Args:
-            contents: 待验收的文案列表
-            criteria: 验收标准
-            
-        Returns:
-            List[AgentResponse]: 验收结果列表
-        """
-        results = []
-        
-        for i, content in enumerate(contents):
-            query = criteria or f"请对第{i+1}个文案进行验收"
-            result = self.process(query, content_to_validate=content)
-            results.append(result)
-        
-        return results
+# ContentValidatorAgent 已移动到 content_validator_agent.py
 
 
-class ScenarioGeneratorAgent(BaseAgent):
-    """场景生成器 Agent
-    
-    专门用于生成各种场景内容，如营销场景、用户故事、测试用例等。
-    支持根据不同的参数和模板生成定制化的场景内容。
-    """
-    
-    def __init__(self, 
-                 endpoint: str,
-                 app_key: str,
-                 scenario_types: Optional[List[str]] = None,
-                 dify_params: Optional[Dict[str, Any]] = None):
-        """
-        初始化场景生成器
-        
-        Args:
-            endpoint: Dify API 端点地址
-            app_key: Dify 应用密钥
-            scenario_types: 支持的场景类型列表
-            dify_params: 传递给Dify API的额外参数
-        """
-        # 创建 DifyClient 实例
-        dify_client = DifyClient(
-            api_key=app_key,
-            base_url=endpoint
-        )
-        self.scenario_types = scenario_types or [
-            "营销场景",
-            "用户故事",
-            "测试用例",
-            "产品演示",
-            "培训场景"
-        ]
-        
-        config = AgentConfig(
-            name="场景生成器",
-            description="智能场景内容生成工具，支持多种场景类型的定制化生成",
-            agent_type=AgentType.SCENARIO_GENERATOR,
-            default_inputs={
-                "scenario_types": self.scenario_types,
-                "output_format": "detailed",
-                "creativity_level": "medium"
-            },
-            system_prompt="你是一个专业的场景设计师，擅长根据需求生成各种类型的场景内容。"
-        )
-        
-        super().__init__(dify_client, config, dify_params)
-    
-    def process(self, params: Dict[str, Any]) -> AgentResponse:
-        """生成场景内容
-        
-        Args:
-            params: 参数字典，包含:
-                - query: 场景生成需求描述（必需）
-                - inputs: 额外输入参数（可选）
-                - scenario_type: 场景类型（可选）
-                - target_audience: 目标受众（可选）
-                - user: 用户标识（可选）
-            
-        Returns:
-            AgentResponse: 生成结果
-        """
-        try:
-            # 验证必需参数
-            if 'query' not in params:
-                raise ValueError("Missing required parameter: query")
-            
-            query = params['query']
-            inputs = params.get('inputs')
-            scenario_type = params.get('scenario_type')
-            target_audience = params.get('target_audience')
-            user = params.get('user', 'scenario_generator')
-            
-            # 准备输入参数
-            final_inputs = self._prepare_inputs(inputs)
-            
-            # 添加场景特定参数
-            if scenario_type:
-                final_inputs["scenario_type"] = scenario_type
-            if target_audience:
-                final_inputs["target_audience"] = target_audience
-            
-            # 构建查询
-            full_query = self._build_scenario_query(query, scenario_type, target_audience)
-            
-            # 合并dify_params到inputs中
-            if self.dify_params:
-                final_inputs.update(self.dify_params)
-            
-            # 调用 Dify API
-            raw_response = self.client.completion_messages_blocking(
-                query=full_query,
-                inputs=final_inputs,
-                user=user
-            )
-            
-            return self._handle_response(raw_response)
-            
-        except DifyAPIError as e:
-            return AgentResponse(
-                success=False,
-                content="",
-                error_message=f"API调用失败: {str(e)}"
-            )
-        except Exception as e:
-            return AgentResponse(
-                success=False,
-                content="",
-                error_message=f"处理失败: {str(e)}"
-            )
-    
-    def process_streaming(self, params: Dict[str, Any]) -> Iterator[AgentResponse]:
-        """流式生成场景内容
-        
-        Args:
-            params: 参数字典，包含:
-                - query: 场景生成需求描述（必需）
-                - inputs: 额外输入参数（可选）
-                - scenario_type: 场景类型（可选）
-                - target_audience: 目标受众（可选）
-                - user: 用户标识（可选）
-        
-        Yields:
-            AgentResponse: 流式生成结果
-        """
-        try:
-            # 验证必需参数
-            if 'query' not in params:
-                raise ValueError("Missing required parameter: query")
-            
-            query = params['query']
-            inputs = params.get('inputs')
-            scenario_type = params.get('scenario_type')
-            target_audience = params.get('target_audience')
-            user = params.get('user', 'scenario_generator')
-            
-            # 准备输入参数
-            final_inputs = self._prepare_inputs(inputs)
-            
-            if scenario_type:
-                final_inputs["scenario_type"] = scenario_type
-            if target_audience:
-                final_inputs["target_audience"] = target_audience
-            
-            # 构建查询
-            full_query = self._build_scenario_query(query, scenario_type, target_audience)
-            
-            # 合并dify_params到inputs中
-            if self.dify_params:
-                final_inputs.update(self.dify_params)
-            
-            # 流式调用 Dify API
-            for chunk in self.client.completion_messages_streaming(
-                query=full_query,
-                inputs=final_inputs,
-                user=user
-            ):
-                yield self._handle_response(chunk)
-                
-        except DifyAPIError as e:
-            yield AgentResponse(
-                success=False,
-                content="",
-                error_message=f"API调用失败: {str(e)}"
-            )
-        except Exception as e:
-            yield AgentResponse(
-                success=False,
-                content="",
-                error_message=f"处理失败: {str(e)}"
-            )
-    
-    def _build_scenario_query(self, 
-                             query: str, 
-                             scenario_type: Optional[str], 
-                             target_audience: Optional[str]) -> str:
-        """构建场景生成查询"""
-        base_query = self._build_query(query)
-        
-        additional_info = []
-        if scenario_type:
-            additional_info.append(f"场景类型：{scenario_type}")
-        if target_audience:
-            additional_info.append(f"目标受众：{target_audience}")
-        
-        if additional_info:
-            return f"{base_query}\n\n{chr(10).join(additional_info)}"
-        
-        return base_query
-    
-    def generate_multiple_scenarios(self, 
-                                   base_query: str, 
-                                   count: int = 3,
-                                   scenario_type: Optional[str] = None) -> List[AgentResponse]:
-        """生成多个场景变体
-        
-        Args:
-            base_query: 基础查询
-            count: 生成数量
-            scenario_type: 场景类型
-            
-        Returns:
-            List[AgentResponse]: 场景列表
-        """
-        results = []
-        
-        for i in range(count):
-            query = f"{base_query} (变体 {i+1})"
-            result = self.process(query, scenario_type=scenario_type)
-            results.append(result)
-        
-        return results
+# ScenarioGeneratorAgent 已移动到 scenario_generator_agent.py
 
 
 class AgentManager:
@@ -597,14 +198,8 @@ class AgentManager:
         self.app_key = app_key
         self._initialized = True
     
-    def getContentValidatorAgent(self, 
-                                validation_criteria: Optional[List[str]] = None,
-                                dify_params: Optional[Dict[str, Any]] = None) -> 'ContentValidatorAgent':
+    def getContentValidatorAgent(self) -> 'ContentValidatorAgent':
         """获取文案验收器Agent
-        
-        Args:
-            validation_criteria: 验收标准列表
-            dify_params: 传递给Dify API的额外参数
             
         Returns:
             ContentValidatorAgent: 文案验收器实例
@@ -614,21 +209,13 @@ class AgentManager:
         if cache_key not in self._agents:
             self._agents[cache_key] = ContentValidatorAgent(
                 endpoint=self.endpoint,
-                app_key=self.app_key,
-                validation_criteria=validation_criteria,
-                dify_params=dify_params
+                app_key=self.app_key
             )
         
         return self._agents[cache_key]
     
-    def getScenarioGeneratorAgent(self,
-                                 scenario_types: Optional[List[str]] = None,
-                                 dify_params: Optional[Dict[str, Any]] = None) -> 'ScenarioGeneratorAgent':
+    def getScenarioGeneratorAgent(self) -> 'ScenarioGeneratorAgent':
         """获取场景生成器Agent
-        
-        Args:
-            scenario_types: 支持的场景类型列表
-            dify_params: 传递给Dify API的额外参数
             
         Returns:
             ScenarioGeneratorAgent: 场景生成器实例
@@ -638,9 +225,7 @@ class AgentManager:
         if cache_key not in self._agents:
             self._agents[cache_key] = ScenarioGeneratorAgent(
                 endpoint=self.endpoint,
-                app_key=self.app_key,
-                scenario_types=scenario_types,
-                dify_params=dify_params
+                app_key=self.app_key
             )
         
         return self._agents[cache_key]
@@ -689,16 +274,12 @@ class AgentFactory:
         if agent_type == AgentType.CONTENT_VALIDATOR:
             return ContentValidatorAgent(
                 endpoint=self.endpoint,
-                app_key=self.app_key,
-                validation_criteria=kwargs.get('validation_criteria'),
-                dify_params=kwargs.get('dify_params')
+                app_key=self.app_key
             )
         elif agent_type == AgentType.SCENARIO_GENERATOR:
             return ScenarioGeneratorAgent(
                 endpoint=self.endpoint,
-                app_key=self.app_key,
-                scenario_types=kwargs.get('scenario_types'),
-                dify_params=kwargs.get('dify_params')
+                app_key=self.app_key
             )
         else:
             raise ValueError(f"Unsupported agent type: {agent_type}")

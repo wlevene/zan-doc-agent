@@ -19,8 +19,7 @@ def demo_agent_manager():
     
     print("\n1. 获取文案验收器 Agent")
     validator = manager.getContentValidatorAgent(
-        validation_criteria=["语法检查", "内容准确性", "风格一致性"],
-        dify_params={"temperature": 0.7, "max_tokens": 1000}
+        validation_criteria=["语法检查", "内容准确性", "风格一致性"]
     )
     
     # 使用 map 参数格式调用 process
@@ -43,8 +42,7 @@ def demo_agent_manager():
     
     print("\n2. 获取场景生成器 Agent")
     generator = manager.getScenarioGeneratorAgent(
-        scenario_types=["营销场景", "用户故事", "产品演示"],
-        dify_params={"temperature": 0.8, "max_tokens": 1500}
+        scenario_types=["营销场景", "用户故事", "产品演示"]
     )
     
     # 使用 map 参数格式调用 process

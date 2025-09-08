@@ -19,12 +19,6 @@ def demo_content_validator():
     print("文案场景验收器 Agent 示例")
     print("="*50)
     
-    # 初始化验收器 Agent（带dify_params示例）
-    dify_params = {
-        "temperature": 0.3,  # 较低的温度确保验收结果稳定
-        "max_tokens": 1500,
-        "response_format": "text"
-    }
     validator = ContentValidatorAgent(
         endpoint="https://api.dify.ai/v1",
         app_key="your-content-validator-key",
@@ -34,8 +28,7 @@ def demo_content_validator():
             "品牌一致性",
             "合规性检查",
             "用户体验友好性"
-        ],
-        dify_params=dify_params
+        ]
     )
     
     # 示例文案内容
@@ -102,12 +95,6 @@ def demo_scenario_generator():
     print("场景生成器 Agent 示例")
     print("="*50)
     
-    # 初始化场景生成器 Agent（带dify_params示例）
-    dify_params = {
-        "temperature": 0.9,  # 较高的温度增加创意性
-        "max_tokens": 2500,
-        "top_p": 0.95
-    }
     generator = ScenarioGeneratorAgent(
         endpoint="https://api.dify.ai/v1",
         app_key="your-scenario-generator-key",
@@ -117,8 +104,7 @@ def demo_scenario_generator():
             "产品演示",
             "客户服务场景",
             "培训场景"
-        ],
-        dify_params=dify_params
+        ]
     )
     
     try:
@@ -196,28 +182,17 @@ def demo_agent_factory():
     try:
         print("\n=== 创建不同类型的 Agent ===")
         
-        # 创建文案验收器（带dify_params）
-        validator_params = {
-            "temperature": 0.2,
-            "max_tokens": 1000
-        }
+        # 创建文案验收器
         validator = factory.create_agent(
             AgentType.CONTENT_VALIDATOR,
-            validation_criteria=["专业性", "可读性", "准确性"],
-            dify_params=validator_params
+            validation_criteria=["专业性", "可读性", "准确性"]
         )
         print(f"创建的验收器：{validator.get_info()}")
         
-        # 创建场景生成器（带dify_params）
-        generator_params = {
-            "temperature": 0.8,
-            "max_tokens": 2000,
-            "top_p": 0.9
-        }
+        # 创建场景生成器
         generator = factory.create_agent(
             AgentType.SCENARIO_GENERATOR,
-            scenario_types=["营销", "培训", "演示"],
-            dify_params=generator_params
+            scenario_types=["营销", "培训", "演示"]
         )
         print(f"创建的生成器：{generator.get_info()}")
         
