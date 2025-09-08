@@ -13,6 +13,7 @@ from typing import List, Optional
 import test_content_validator
 import test_scenario_generator
 import test_agent_manager
+import test_wellness_mom
 
 
 class TestRunner:
@@ -22,7 +23,8 @@ class TestRunner:
         self.test_modules = {
             'content_validator': test_content_validator,
             'scenario_generator': test_scenario_generator,
-            'agent_manager': test_agent_manager
+            'agent_manager': test_agent_manager,
+            'wellness_mom': test_wellness_mom
         }
     
     def run_all_tests(self):
