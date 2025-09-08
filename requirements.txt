@@ -1,0 +1,2 @@
+# Dify API 封装项目依赖
+requests>=2.28.0
