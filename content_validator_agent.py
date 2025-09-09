@@ -163,7 +163,6 @@ class ContentValidatorAgent(BaseAgent):
             params: 参数字典，包含:
                 - query: 验收要求描述（必需）
                 - inputs: 额外输入参数（可选）
-                - content_to_validate: 待验收的文案内容（可选）
                 - user: 用户标识（可选）
             
         Returns:
@@ -219,7 +218,6 @@ class ContentValidatorAgent(BaseAgent):
             params: 参数字典，包含:
                 - query: 验收要求描述（必需）
                 - inputs: 额外输入参数（可选）
-                - content_to_validate: 待验收的文案内容（可选）
                 - user: 用户标识（可选）
         
         Yields:

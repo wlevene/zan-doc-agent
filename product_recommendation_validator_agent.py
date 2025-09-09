@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-场景生成器 Agent
-专门用于生成各种场景内容，如营销场景、用户故事、测试用例等
+商品推荐验收器 Agent
+专门用于验收商品推荐内容，检查推荐是否符合特定的标准和要求
 """
 
 from typing import Dict, Any, Optional, List, Iterator
@@ -16,6 +16,7 @@ class AgentType(Enum):
     """Agent 类型枚举"""
     CONTENT_VALIDATOR = "content_validator"  # 文案场景验收器
     SCENARIO_GENERATOR = "scenario_generator"  # 场景生成器
+    PRODUCT_RECOMMENDATION_VALIDATOR = "product_recommendation_validator"  # 商品推荐验收器
     CUSTOM = "custom"  # 自定义类型
 
 
@@ -125,18 +126,18 @@ class BaseAgent(ABC):
         }
 
 
-class ScenarioGeneratorAgent(BaseAgent):
-    """场景生成器 Agent
+class ProductRecommendationValidatorAgent(BaseAgent):
+    """商品推荐验收器 Agent
     
-    专门用于生成各种场景内容，如营销场景、用户故事、测试用例等。
-    支持根据不同的参数和模板生成定制化的场景内容。
+    专门用于验收商品推荐内容，检查推荐是否符合特定的标准和要求。
+    可以检查推荐的准确性、相关性、合理性等多个维度。
     """
     
     def __init__(self, 
                  endpoint: str,
                  app_key: str):
         """
-        初始化场景生成器
+        初始化商品推荐验收器
         
         Args:
             endpoint: Dify API 端点地址
@@ -149,28 +150,30 @@ class ScenarioGeneratorAgent(BaseAgent):
         )
         
         config = AgentConfig(
-            name="场景生成器",
-            description="智能场景内容生成工具，支持多种场景类型的定制化生成",
-            agent_type=AgentType.SCENARIO_GENERATOR
+            name="商品推荐验收器",
+            description="专业的商品推荐内容验收工具，支持多维度质量检查",
+            agent_type=AgentType.PRODUCT_RECOMMENDATION_VALIDATOR
         )
         
         super().__init__(dify_client, config)
     
     def process(self, params: Dict[str, Any]) -> AgentResponse:
-        """生成场景内容
+        """验收商品推荐内容
         
         Args:
             params: 参数字典，包含:
-                - query: 场景生成需求描述（必需）
+                - query: 验收要求描述（必需）
+                - inputs: 额外输入参数（可选）
                 - user: 用户标识（可选）
             
         Returns:
-            AgentResponse: 生成结果
+            AgentResponse: 验收结果
         """
         try:
             query = params.get('query', '')
             inputs = params.get('inputs')
-            user = params.get('user', 'scenario_generator')
+            recommendation_to_validate = params.get('recommendation_to_validate')
+            user = params.get('user', 'product_recommendation_validator')
             
             # 准备输入参数
             final_inputs = self._prepare_inputs(inputs)
@@ -185,7 +188,7 @@ class ScenarioGeneratorAgent(BaseAgent):
                     final_inputs[key] = value
             
             # 构建查询
-            full_query = self._build_scenario_query(query, scenario_type, target_audience)
+            full_query = self._build_validation_query(query, recommendation_to_validate)
             
             # 调用 Dify API
             raw_response = self.client.completion_messages_blocking(
@@ -210,23 +213,22 @@ class ScenarioGeneratorAgent(BaseAgent):
             )
     
     def process_streaming(self, params: Dict[str, Any]) -> Iterator[AgentResponse]:
-        """流式生成场景内容
+        """流式验收商品推荐内容
         
         Args:
             params: 参数字典，包含:
-                - query: 场景生成需求描述（必需）
+                - query: 验收要求描述（必需）
                 - inputs: 额外输入参数（可选）
                 - user: 用户标识（可选）
         
         Yields:
-            AgentResponse: 流式生成结果
+            AgentResponse: 流式验收结果
         """
         try:
             query = params.get('query', '')
             inputs = params.get('inputs')
-            scenario_type = params.get('scenario_type')
-            target_audience = params.get('target_audience')
-            user = params.get('user', 'scenario_generator')
+            recommendation_to_validate = params.get('recommendation_to_validate')
+            user = params.get('user', 'product_recommendation_validator')
             
             # 准备输入参数
             final_inputs = self._prepare_inputs(inputs)
@@ -241,7 +243,7 @@ class ScenarioGeneratorAgent(BaseAgent):
                     final_inputs[key] = value
             
             # 构建查询
-            full_query = self._build_scenario_query(query, scenario_type, target_audience)
+            full_query = self._build_validation_query(query, recommendation_to_validate)
             
             # 流式调用 Dify API
             for chunk in self.client.completion_messages_streaming(
@@ -264,43 +266,28 @@ class ScenarioGeneratorAgent(BaseAgent):
                 error_message=f"处理失败: {str(e)}"
             )
     
-    def _build_scenario_query(self, 
-                             query: str, 
-                             scenario_type: Optional[str], 
-                             target_audience: Optional[str]) -> str:
-        """构建场景生成查询"""
+    def _build_validation_query(self, query: str, recommendation: Optional[str]) -> str:
+        """构建验收查询"""
         base_query = self._build_query(query)
         
-        additional_info = []
-        if scenario_type:
-            additional_info.append(f"场景类型：{scenario_type}")
-        if target_audience:
-            additional_info.append(f"目标受众：{target_audience}")
-        
-        if additional_info:
-            return f"{base_query}\n\n{chr(10).join(additional_info)}"
+        if recommendation:
+            return f"{base_query}\n\n待验收商品推荐：\n{recommendation}"
         
         return base_query
     
-    def generate_multiple_scenarios(self, 
-                                   base_query: str, 
-                                   count: int = 3,
-                                   scenario_type: Optional[str] = None) -> List[AgentResponse]:
-        """生成多个场景变体
+    def validate_batch(self, 
+                      recommendations: List[str], 
+                      criteria: Optional[str] = None) -> List[AgentResponse]:
+        """批量验收商品推荐
         
         Args:
-            base_query: 基础查询
-            count: 生成数量
-            scenario_type: 场景类型
+            recommendations: 待验收的商品推荐列表
+            criteria: 验收标准
             
         Returns:
-            List[AgentResponse]: 场景列表
+            List[AgentResponse]: 验收结果列表
         """
         results = []
         
-        for i in range(count):
-            query = f"{base_query} (变体 {i+1})"
-            result = self.process({'query': query, 'scenario_type': scenario_type})
-            results.append(result)
-        
-        return results
+        for i, recommendation in enumerate(recommendations):
+            query
