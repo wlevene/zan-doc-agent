@@ -92,8 +92,6 @@ class WellnessWorkflow:
             print(f"scenario_result: {scenario_result.content}")
             scenario_result.content = scenario_result.content.replace("```json", "").replace("```", "")
 
-
-
             # array scenario  for scenario_result.content
             # scenario_result.content is already processed as newline-separated strings
             scenario_array = [line.strip() for line in scenario_result.content.split('\n') if line.strip()]
@@ -107,29 +105,22 @@ class WellnessWorkflow:
                 scenario_result_json = json.loads(scenario_result)
                 if scenario_result_json.get("result"):
                     print(f"reason: {scenario_result_json.get("reason")}")
-                
-                # if not scenario_result.success:
-                #     return WorkflowResult(False, {}, f"场景生成失败: {scenario_result.error_message}")
-                # print(f"scenario_result: {scenario_result.content}")
+                    content_result = self.content_generator.process({"query":scenario})
+                    print(f"content_result: {content_result.content}\n")
+
+                    content_validation = self.content_validator.process({"query":content_result.content, "scenario": scenario})
+                    if not content_validation.success:
+                        return WorkflowResult(False, {}, f"文案验收失败: {content_validation.error_message}")
+                    print(f"\ncontent_validation: {content_validation}")
+                    content_validation_json = json.loads(content_validation.content.replace("```json", "").replace("```", ""))
+                    if content_validation_json.get("result"):
+                        print(f"content_validation_json: {content_validation_json.get("result")}")
+
+                        print(f"\n 文案验收通过:{content_result.content}")
 
 
             return WorkflowResult(False, {}, f"测试完成")
-
-            # # 步骤3: 场景验收
-            # scenario_validation = self.scenario_validator.process(scenario_result.data)
-            # if not scenario_validation.success:
-            #     return WorkflowResult(False, {}, f"场景验收失败: {scenario_validation.error_message}")
-            
-            # 步骤4: 文案生成
-            content_result = self.content_generator.process(scenario_validation.data)
-            if not content_result.success:
-                return WorkflowResult(False, {}, f"文案生成失败: {content_result.error_message}")
-            
-            # 步骤5: 文案验收
-            content_validation = self.content_validator.process(content_result.data)
-            if not content_validation.success:
-                return WorkflowResult(False, {}, f"文案验收失败: {content_validation.error_message}")
-            
+                        
             # 步骤6: 商品推荐
             product_result = self.product_recommender.process(content_validation.data)
             if not product_result.success:

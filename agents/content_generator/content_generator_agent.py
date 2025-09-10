@@ -135,7 +135,7 @@ class ContentGeneratorAgent(BaseAgent):
     
     def __init__(self, 
                  endpoint: str = "http://119.45.130.88:8080/v1",
-                 app_key: str = "app-ixK02FbhtS9QiklR0pXo0eu0"):
+                 app_key: str = "app-kPd3U0xka6D475yOdt9YEMrO"):
         """
         初始化文案生成器
         
