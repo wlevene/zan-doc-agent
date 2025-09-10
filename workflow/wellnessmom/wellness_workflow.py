@@ -16,15 +16,17 @@
 import sys
 import os
 from pathlib import Path
-
-# 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
-
 import json
 import logging
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
+
+# 先导入本地模块
+from content_item import ContentCollector
+
+# 添加项目根目录到Python路径
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 # 导入所有需要的agent
 from agents.wellness.wellness_mom_agent import WellnessMomAgent
@@ -72,6 +74,9 @@ class WellnessWorkflow:
         self.product_recommender = ProductRecommenderAgent(base_url, api_key)
         self.product_recommendation_validator = ProductRecommendationValidatorAgent(base_url, api_key)
         
+        # 初始化数据收集器
+        self.content_collector = ContentCollector()
+        
         logger.info("养生妈妈工作流初始化完成")
     
     def run_complete_workflow(self, user_input: str) -> WorkflowResult:
@@ -117,39 +122,48 @@ class WellnessWorkflow:
                         print(f"content_validation_json: {content_validation_json.get("result")}")
 
                         print(f"\n 文案验收通过:{content_result.content}")
-
-
-            return WorkflowResult(False, {}, f"测试完成")
                         
-            # 步骤6: 商品推荐
-            product_result = self.product_recommender.process(content_validation.data)
-            if not product_result.success:
-                return WorkflowResult(False, {}, f"商品推荐失败: {product_result.error_message}")
+                        # 收集文案数据
+                        self._collect_content_data(
+                            user_input=user_input,
+                            persona_detail=self.persona_detail,
+                            scenario_data={"content": scenario},
+                            scenario_validation_result=True,
+                            content_data={"content": content_result.content},
+                            content_validation_data={"validation_reason": content_validation_json.get("reason", "文案验收通过")},
+                            content_validation_result=True
+                        )
+
+
+            # return WorkflowResult(False, {}, f"测试完成")
+                        
+            # # 步骤6: 商品推荐
+            # product_result = self.product_recommender.process(content_validation.data)
+            # if not product_result.success:
+            #     return WorkflowResult(False, {}, f"商品推荐失败: {product_result.error_message}")
             
-            # 步骤7: 商品推荐验收
-            product_validation = self.product_recommendation_validator.process(product_result.data)
-            if not product_validation.success:
-                return WorkflowResult(False, {}, f"商品推荐验收失败: {product_validation.error_message}")
+            # # 步骤7: 商品推荐验收
+            # product_validation = self.product_recommendation_validator.process(product_result.data)
+            # if not product_validation.success:
+            #     return WorkflowResult(False, {}, f"商品推荐验收失败: {product_validation.error_message}")
             
-            # 步骤8: 获取商品信息(图片)
-            product_info = self._get_product_info(product_validation.data)
+            # # 步骤8: 获取商品信息(图片)
+            # product_info = self._get_product_info(product_validation.data)
             
-            # 步骤9: 最终文案生成
-            final_content = self.content_generator.process({
-                "content": content_validation.data,
-                "products": product_info
-            })
+            # # 步骤9: 最终文案生成
+            # final_content = self.content_generator.process({
+            #     "content": content_validation.data,
+            #     "products": product_info
+            # })
             
-            if not final_content.success:
-                return WorkflowResult(False, {}, f"最终文案生成失败: {final_content.error_message}")
+            # if not final_content.success:
+            #     return WorkflowResult(False, {}, f"最终文案生成失败: {final_content.error_message}")
             
             # 整合所有结果
             workflow_data = {
-                "persona": persona_result.data,
-                "scenarios": scenario_validation.data,
-                "content": content_validation.data,
-                "products": product_info,
-                "final_content": final_content.data
+                "persona": self.persona_detail,
+                "content_count": self.content_collector.get_count(),
+                "message": "文案收集完成"
             }
             
             logger.info("完整工作流执行成功")
@@ -158,6 +172,93 @@ class WellnessWorkflow:
         except Exception as e:
             logger.error(f"工作流执行异常: {str(e)}")
             return WorkflowResult(False, {}, str(e))
+    
+    def _collect_content_data(self, 
+                             user_input: str,
+                             persona_detail: str,
+                             scenario_data: Dict[str, Any],
+                             scenario_validation_result: bool,
+                             content_data: Dict[str, Any],
+                             content_validation_data: Dict[str, Any],
+                             content_validation_result: bool) -> None:
+        """收集文案数据到ContentCollector
+        
+        Args:
+            user_input: 用户输入
+            persona_detail: 人物设定
+            scenario_data: 场景数据
+            scenario_validation_result: 场景验收结果
+            content_data: 文案数据
+            content_validation_data: 文案验收数据
+            content_validation_result: 文案验收结果
+        """
+        try:
+            # 提取场景内容
+            scenario_content = scenario_data.get('content', '') if isinstance(scenario_data, dict) else str(scenario_data)
+            
+            # 提取场景验收原因
+            scenario_reason = scenario_data.get('validation_reason', '场景验收通过') if isinstance(scenario_data, dict) else '场景验收通过'
+            
+            # 提取文案内容
+            content_text = content_data.get('content', '') if isinstance(content_data, dict) else str(content_data)
+            
+            # 提取文案验收原因
+            content_reason = content_validation_data.get('validation_reason', '文案验收通过') if isinstance(content_validation_data, dict) else '文案验收通过'
+            
+            # 添加到收集器
+            self.content_collector.add_content(
+                user_input=user_input,
+                persona_detail=persona_detail,
+                scenario_data={'title': '场景', 'description': scenario_content},
+                scenario_validation_result=scenario_validation_result,
+                content_data={'title': '文案', 'content': content_text},
+                content_validation_data={'feedback': content_reason},
+                content_validation_result=content_validation_result
+            )
+            
+            logger.info(f"已收集文案数据，当前总数: {self.content_collector.get_count()}")
+            
+        except Exception as e:
+            logger.error(f"收集文案数据失败: {str(e)}")
+    
+    def export_content_to_excel(self, filename: str = None) -> Optional[str]:
+        """导出收集的文案数据到Excel
+        
+        Args:
+            filename: Excel文件名，如果为None则自动生成
+            
+        Returns:
+            Optional[str]: 生成的Excel文件路径，如果没有数据则返回None
+        """
+        try:
+            excel_file = self.content_collector.export_to_excel(filename)
+            if excel_file:
+                logger.info(f"文案数据已导出到: {excel_file}")
+            return excel_file
+        except Exception as e:
+            logger.error(f"导出文案数据失败: {str(e)}")
+            return None
+    
+    def get_collected_content_count(self) -> int:
+        """获取已收集的文案数据数量
+        
+        Returns:
+            int: 数据数量
+        """
+        return len(self.content_collector)
+    
+    def get_valid_content_count(self) -> int:
+        """获取验收通过的文案数据数量
+        
+        Returns:
+            int: 验收通过的数据数量
+        """
+        return len(self.content_collector.get_valid_items())
+    
+    def clear_collected_content(self) -> None:
+        """清空已收集的文案数据"""
+        self.content_collector.clear()
+        logger.info("已清空收集的文案数据")
     
     def _get_product_info(self, product_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """获取商品信息包括图片"""
@@ -270,5 +371,12 @@ if __name__ == "__main__":
     if result.success:
         print("工作流执行成功!")
         print(json.dumps(result.data, ensure_ascii=False, indent=2))
+        
+        # 导出收集的文案数据到Excel
+        excel_file = workflow.export_content_to_excel()
+        if excel_file:
+            print(f"文案数据已导出到: {excel_file}")
+        else:
+            print("没有文案数据需要导出")
     else:
         print(f"工作流执行失败: {result.error}")
