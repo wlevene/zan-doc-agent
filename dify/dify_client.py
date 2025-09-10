@@ -107,7 +107,7 @@ class DifyClient:
     
     def completion_messages_blocking(
         self,
-        query: str,
+        query: str = None,
         inputs: Optional[Dict[str, Any]] = None,
         user: Optional[str] = None,
         files: Optional[List[FileInfo]] = None
@@ -228,7 +228,6 @@ class DifyClient:
         
         try:
             response = self.session.post(url, json=data)
-            
             if not response.ok:
                 self._handle_error_response(response)
             

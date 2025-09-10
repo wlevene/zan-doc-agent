@@ -90,6 +90,10 @@ class WellnessWorkflow:
                 return WorkflowResult(False, {}, f"场景生成失败: {scenario_result.error_message}")
 
             print(f"scenario_result: {scenario_result.content}")
+            scenario_result.content = scenario_result.content.replace("```json", "").replace("```", "")
+
+
+
             # array scenario  for scenario_result.content
             # scenario_result.content is already processed as newline-separated strings
             scenario_array = [line.strip() for line in scenario_result.content.split('\n') if line.strip()]
@@ -98,7 +102,12 @@ class WellnessWorkflow:
             # 步骤2: 场景生成
             for scenario in scenario_array:
                 scenario_result = self.scenario_validator.process({"scene":scenario, "persona":self.persona_detail})
-                print(f"scenario_result: {scenario_result.content}")
+                scenario_result = scenario_result.content.replace("```json", "").replace("```", "")
+
+                scenario_result_json = json.loads(scenario_result)
+                if scenario_result_json.get("result"):
+                    print(f"reason: {scenario_result_json.get("reason")}")
+                
                 # if not scenario_result.success:
                 #     return WorkflowResult(False, {}, f"场景生成失败: {scenario_result.error_message}")
                 # print(f"scenario_result: {scenario_result.content}")

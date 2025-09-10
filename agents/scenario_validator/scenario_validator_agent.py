@@ -170,21 +170,18 @@ class ScenarioValidatorAgent(BaseAgent):
             AgentResponse: 验收结果
         """
         try:
-            query = params.get('query', '')
-            
+            user = params.get('user', 'scenario_generator')
+           
             # 准备输入参数
-            final_inputs = self._prepare_inputs(params)
+            final_inputs = (params)
             
-            print(f"final_inputs: {final_inputs}")
 
-
-            full_query = self._build_scenario_query(query)
             # 调用 Dify API
             raw_response = self.client.completion_messages_blocking(
-                query=full_query,
+                query="请验证以下场景的合理性和有效性",
                 inputs=final_inputs,
+                user=user
             )
-            print(f"raw_response: {raw_response}")
             return self._handle_response(raw_response)
             
         except DifyAPIError as e:
