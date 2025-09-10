@@ -5,7 +5,7 @@ Dify API 使用示例
 演示如何使用 dify_client 模块进行文本生成
 """
 
-from dify_client import DifyClient, DifyAPIError, FileInfo, FileType, TransferMethod
+from dify.dify_client import DifyClient, DifyAPIError, FileInfo, FileType, TransferMethod
 
 
 def demo_blocking_mode():

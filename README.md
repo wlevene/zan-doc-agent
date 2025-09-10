@@ -144,10 +144,7 @@ print(result.content)
 from agents import ContentValidatorAgent
 
 # 创建验收器
-validator = ContentValidatorAgent(
-    dify_client=client,
-    validation_criteria=["语法正确性", "品牌一致性", "用户体验"]
-)
+validator = ContentValidatorAgent()
 
 # 单个文案验收
 result = validator.process(
