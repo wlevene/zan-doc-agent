@@ -71,7 +71,7 @@ class WellnessWorkflow:
         self.scenario_validator = ScenarioValidatorAgent()
         self.content_generator = ContentGeneratorAgent()
         self.content_validator = ContentValidatorAgent()
-        self.product_recommender = ProductRecommenderAgent(base_url, api_key)
+        self.product_recommender = ProductRecommenderAgent()
         self.product_recommendation_validator = ProductRecommendationValidatorAgent(base_url, api_key)
         
         # 初始化数据收集器
@@ -102,37 +102,148 @@ class WellnessWorkflow:
             scenario_array = [line.strip() for line in scenario_result.content.split('\n') if line.strip()]
             print(f"scenario_array: {scenario_array}")
 
-            # 步骤2: 场景生成
+            # 步骤2: 场景验证和处理
             for scenario in scenario_array:
-                scenario_result = self.scenario_validator.process({"scene":scenario, "persona":self.persona_detail})
-                scenario_result = scenario_result.content.replace("```json", "").replace("```", "")
-
-                scenario_result_json = json.loads(scenario_result)
-                if scenario_result_json.get("result"):
-                    print(f"reason: {scenario_result_json.get("reason")}")
+                try:
+                    # 场景验证
+                    scenario_validation_result = self.scenario_validator.process({"scene":scenario, "persona":self.persona_detail})
+                    if not scenario_validation_result.success:
+                        # 场景验证失败，记录错误
+                        self.content_collector.add_scenario_only(
+                            user_input=user_input,
+                            persona_detail=self.persona_detail,
+                            scenario=scenario,
+                            scenario_validation_result=False,
+                            scenario_validation_reason=f"场景验证API调用失败: {scenario_validation_result.error_message}"
+                        )
+                        continue
+                    
+                    scenario_result_content = scenario_validation_result.content.replace("```json", "").replace("```", "")
+                    scenario_result_json = json.loads(scenario_result_content)
+                    scenario_validation_passed = scenario_result_json.get("result", False)
+                    scenario_validation_reason = scenario_result_json.get("reason", "")
+                    
+                    if not scenario_validation_passed:
+                        # 场景验证未通过，记录失败原因
+                        print(f"场景验证失败: {scenario_validation_reason}")
+                        self.content_collector.add_scenario_only(
+                            user_input=user_input,
+                            persona_detail=self.persona_detail,
+                            scenario=scenario,
+                            scenario_validation_result=False,
+                            scenario_validation_reason=scenario_validation_reason
+                        )
+                        continue
+                    
+                    print(f"场景验证通过: {scenario_validation_reason}")
+                    
+                    # 文案生成
                     content_result = self.content_generator.process({"query":scenario})
-                    print(f"content_result: {content_result.content}\n")
-
-                    content_validation = self.content_validator.process({"query":content_result.content, "scenario": scenario})
-                    if not content_validation.success:
-                        return WorkflowResult(False, {}, f"文案验收失败: {content_validation.error_message}")
-                    print(f"\ncontent_validation: {content_validation}")
-                    content_validation_json = json.loads(content_validation.content.replace("```json", "").replace("```", ""))
-                    if content_validation_json.get("result"):
-                        print(f"content_validation_json: {content_validation_json.get("result")}")
-
-                        print(f"\n 文案验收通过:{content_result.content}")
-                        
-                        # 收集文案数据
-                        self._collect_content_data(
+                    if not content_result.success:
+                        # 文案生成失败
+                        print(f"文案生成失败: {content_result.error_message}")
+                        self.content_collector.add_content(
                             user_input=user_input,
                             persona_detail=self.persona_detail,
                             scenario_data={"content": scenario},
                             scenario_validation_result=True,
-                            content_data={"content": content_result.content},
-                            content_validation_data={"validation_reason": content_validation_json.get("reason", "文案验收通过")},
-                            content_validation_result=True
+                            scenario_validation_reason=scenario_validation_reason,
+                            content_data={"content": ""},
+                            content_validation_data={"validation_reason": ""},
+                            content_validation_result=False,
+                            content_generation_success=False,
+                            content_generation_error=content_result.error_message,
+                            processing_stage="content_generation",
+                            final_status="content_failed"
                         )
+                        continue
+                    
+                    print(f"文案生成成功: {content_result.content}\n")
+                    
+                    # 文案验证
+                    content_validation = self.content_validator.process({"query":content_result.content, "scenario": scenario})
+                    if not content_validation.success:
+                        # 文案验证API调用失败
+                        print(f"文案验证API调用失败: {content_validation.error_message}")
+                        self.content_collector.add_content(
+                            user_input=user_input,
+                            persona_detail=self.persona_detail,
+                            scenario_data={"content": scenario},
+                            scenario_validation_result=True,
+                            scenario_validation_reason=scenario_validation_reason,
+                            content_data={"content": content_result.content},
+                            content_validation_data={"validation_reason": f"验证API调用失败: {content_validation.error_message}"},
+                            content_validation_result=False,
+                            processing_stage="content_validation",
+                            final_status="validation_failed"
+                        )
+                        continue
+                    
+                    print(f"\ncontent_validation: {content_validation}")
+                    content_validation_json = json.loads(content_validation.content.replace("```json", "").replace("```", ""))
+                    content_validation_passed = content_validation_json.get("result", False)
+                    content_validation_reason = content_validation_json.get("reason", "")
+                    
+                    if not content_validation_passed:
+                        # 文案验证未通过
+                        print(f"文案验证未通过: {content_validation_reason}")
+                        self.content_collector.add_content(
+                            user_input=user_input,
+                            persona_detail=self.persona_detail,
+                            scenario_data={"content": scenario},
+                            scenario_validation_result=True,
+                            scenario_validation_reason=scenario_validation_reason,
+                            content_data={"content": content_result.content},
+                            content_validation_data={"validation_reason": content_validation_reason},
+                            content_validation_result=False,
+                            processing_stage="content_validation",
+                            final_status="validation_failed"
+                        )
+                        continue
+                    
+                    print(f"文案验证通过: {content_result.content}")
+                    
+                    # 商品推荐
+                    product_result = self.product_recommender.process({"query":content_result.content})
+                    recommended_products = ""
+                    product_success = False
+                    product_error = ""
+                    
+                    if product_result.success:
+                        print(f"\n商品推荐成功: {product_result.content}")
+                        recommended_products = product_result.content
+                        product_success = True
+                    else:
+                        print(f"\n商品推荐失败: {product_result.error_message}")
+                        product_error = product_result.error_message
+                    
+                    # 收集完整的文案数据
+                    self.content_collector.add_content(
+                        user_input=user_input,
+                        persona_detail=self.persona_detail,
+                        scenario_data={"content": scenario},
+                        scenario_validation_result=True,
+                        scenario_validation_reason=scenario_validation_reason,
+                        content_data={"content": content_result.content},
+                        content_validation_data={"validation_reason": content_validation_reason},
+                        content_validation_result=True,
+                        recommended_products=recommended_products,
+                        product_recommendation_success=product_success,
+                        product_recommendation_error=product_error,
+                        processing_stage="completed",
+                        final_status="success"
+                    )
+                    
+                except Exception as e:
+                    # 处理过程中的异常
+                    print(f"处理场景时发生异常: {str(e)}")
+                    self.content_collector.add_scenario_only(
+                        user_input=user_input,
+                        persona_detail=self.persona_detail,
+                        scenario=scenario,
+                        scenario_validation_result=False,
+                        scenario_validation_reason=f"处理异常: {str(e)}"
+                    )
 
 
             # return WorkflowResult(False, {}, f"测试完成")
@@ -173,53 +284,7 @@ class WellnessWorkflow:
             logger.error(f"工作流执行异常: {str(e)}")
             return WorkflowResult(False, {}, str(e))
     
-    def _collect_content_data(self, 
-                             user_input: str,
-                             persona_detail: str,
-                             scenario_data: Dict[str, Any],
-                             scenario_validation_result: bool,
-                             content_data: Dict[str, Any],
-                             content_validation_data: Dict[str, Any],
-                             content_validation_result: bool) -> None:
-        """收集文案数据到ContentCollector
-        
-        Args:
-            user_input: 用户输入
-            persona_detail: 人物设定
-            scenario_data: 场景数据
-            scenario_validation_result: 场景验收结果
-            content_data: 文案数据
-            content_validation_data: 文案验收数据
-            content_validation_result: 文案验收结果
-        """
-        try:
-            # 提取场景内容
-            scenario_content = scenario_data.get('content', '') if isinstance(scenario_data, dict) else str(scenario_data)
-            
-            # 提取场景验收原因
-            scenario_reason = scenario_data.get('validation_reason', '场景验收通过') if isinstance(scenario_data, dict) else '场景验收通过'
-            
-            # 提取文案内容
-            content_text = content_data.get('content', '') if isinstance(content_data, dict) else str(content_data)
-            
-            # 提取文案验收原因
-            content_reason = content_validation_data.get('validation_reason', '文案验收通过') if isinstance(content_validation_data, dict) else '文案验收通过'
-            
-            # 添加到收集器
-            self.content_collector.add_content(
-                user_input=user_input,
-                persona_detail=persona_detail,
-                scenario_data={'title': '场景', 'description': scenario_content},
-                scenario_validation_result=scenario_validation_result,
-                content_data={'title': '文案', 'content': content_text},
-                content_validation_data={'feedback': content_reason},
-                content_validation_result=content_validation_result
-            )
-            
-            logger.info(f"已收集文案数据，当前总数: {self.content_collector.get_count()}")
-            
-        except Exception as e:
-            logger.error(f"收集文案数据失败: {str(e)}")
+
     
     def export_content_to_excel(self, filename: str = None) -> Optional[str]:
         """导出收集的文案数据到Excel

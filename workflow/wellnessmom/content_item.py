@@ -27,15 +27,24 @@ class ContentItem:
     scenario_title: str  # 场景标题
     scenario_description: str  # 场景描述
     scenario_validation: bool  # 场景验收结果
+    scenario_validation_reason: str = ""  # 场景验收原因
     
     # 文案信息
-    content_title: str  # 文案标题
-    content_body: str  # 文案正文
-    content_validation: bool  # 文案验收结果
-    content_validation_feedback: str  # 文案验收反馈
+    content_title: str = ""  # 文案标题
+    content_body: str = ""  # 文案正文
+    content_validation: bool = False  # 文案验收结果
+    content_validation_feedback: str = ""  # 文案验收反馈
+    content_generation_success: bool = True  # 文案生成是否成功
+    content_generation_error: str = ""  # 文案生成错误信息
     
     # 推荐商品信息（可选）
     recommended_products: str = ""  # 推荐商品列表
+    product_recommendation_success: bool = False  # 商品推荐是否成功
+    product_recommendation_error: str = ""  # 商品推荐错误信息
+    
+    # 处理状态
+    processing_stage: str = ""  # 当前处理阶段（scenario_validation, content_generation, content_validation, product_recommendation）
+    final_status: str = ""  # 最终状态（success, scenario_failed, content_failed, validation_failed）
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
@@ -63,9 +72,11 @@ class ContentItem:
         # 重新排列列的顺序，使其更易读
         column_order = [
             'timestamp', 'user_input', 'persona_detail',
-            'scenario_title', 'scenario_description', 'scenario_validation',
+            'scenario_title', 'scenario_description', 'scenario_validation', 'scenario_validation_reason',
             'content_title', 'content_body', 'content_validation', 'content_validation_feedback',
-            'recommended_products'
+            'content_generation_success', 'content_generation_error',
+            'recommended_products', 'product_recommendation_success', 'product_recommendation_error',
+            'processing_stage', 'final_status'
         ]
         
         # 只保留存在的列
@@ -149,7 +160,14 @@ class ContentCollector:
                    content_data: Dict[str, Any],
                    content_validation_data: Dict[str, Any],
                    content_validation_result: bool,
-                   recommended_products: str = "") -> None:
+                   recommended_products: str = "",
+                   scenario_validation_reason: str = "",
+                   content_generation_success: bool = True,
+                   content_generation_error: str = "",
+                   product_recommendation_success: bool = False,
+                   product_recommendation_error: str = "",
+                   processing_stage: str = "",
+                   final_status: str = "") -> None:
         """
         添加一条文案数据
         
@@ -162,19 +180,63 @@ class ContentCollector:
             content_validation_data: 文案验收数据
             content_validation_result: 文案验收结果
             recommended_products: 推荐商品信息
+            scenario_validation_reason: 场景验收原因
+            content_generation_success: 文案生成是否成功
+            content_generation_error: 文案生成错误信息
+            product_recommendation_success: 商品推荐是否成功
+            product_recommendation_error: 商品推荐错误信息
+            processing_stage: 当前处理阶段
+            final_status: 最终状态
         """
         item = ContentItem(
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             user_input=user_input,
             persona_detail=persona_detail,
             scenario_title=scenario_data.get('title', ''),
-            scenario_description=scenario_data.get('description', ''),
+            scenario_description=scenario_data.get('content', scenario_data.get('description', '')),
             scenario_validation=scenario_validation_result,
+            scenario_validation_reason=scenario_validation_reason,
             content_title=content_data.get('title', ''),
             content_body=content_data.get('content', ''),
             content_validation=content_validation_result,
-            content_validation_feedback=content_validation_data.get('feedback', ''),
-            recommended_products=recommended_products
+            content_validation_feedback=content_validation_data.get('validation_reason', content_validation_data.get('feedback', '')),
+            content_generation_success=content_generation_success,
+            content_generation_error=content_generation_error,
+            recommended_products=recommended_products,
+            product_recommendation_success=product_recommendation_success,
+            product_recommendation_error=product_recommendation_error,
+            processing_stage=processing_stage,
+            final_status=final_status
+        )
+        
+        self.items.append(item)
+    
+    def add_scenario_only(self, 
+                         user_input: str,
+                         persona_detail: str,
+                         scenario: str,
+                         scenario_validation_result: bool,
+                         scenario_validation_reason: str = "") -> None:
+        """
+        仅添加场景数据（用于场景验证失败的情况）
+        
+        Args:
+            user_input: 用户输入
+            persona_detail: 人物设定
+            scenario: 场景内容
+            scenario_validation_result: 场景验收结果
+            scenario_validation_reason: 场景验收原因
+        """
+        item = ContentItem(
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            user_input=user_input,
+            persona_detail=persona_detail,
+            scenario_title="",
+            scenario_description=scenario,
+            scenario_validation=scenario_validation_result,
+            scenario_validation_reason=scenario_validation_reason,
+            processing_stage="scenario_validation",
+            final_status="scenario_failed" if not scenario_validation_result else "success"
         )
         
         self.items.append(item)

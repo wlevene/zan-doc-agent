@@ -134,8 +134,8 @@ class ProductRecommenderAgent(BaseAgent):
     """
     
     def __init__(self, 
-                 endpoint: str,
-                 app_key: str):
+                 endpoint: str = "http://119.45.130.88:8080/v1",
+                 app_key: str = "app-oM9cjamwbeTy4em5KoEUvuDL"):
         """
         初始化商品推荐器
         
@@ -143,6 +143,7 @@ class ProductRecommenderAgent(BaseAgent):
             endpoint: Dify API 端点地址
             app_key: Dify 应用密钥
         """
+
         # 创建 DifyClient 实例
         dify_client = DifyClient(
             api_key=app_key,
