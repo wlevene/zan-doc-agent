@@ -137,71 +137,104 @@ class WellnessWorkflow:
                     
                     print(f"场景验证通过: {scenario_validation_reason}")
                     
-                    # 文案生成
-                    content_result = self.content_generator.process({"query":scenario})
-                    if not content_result.success:
-                        # 文案生成失败
-                        print(f"文案生成失败: {content_result.error_message}")
-                        self.content_collector.add_content(
-                            user_input=user_input,
-                            persona_detail=self.persona_detail,
-                            scenario_data={"content": scenario},
-                            scenario_validation_result=True,
-                            scenario_validation_reason=scenario_validation_reason,
-                            content_data={"content": ""},
-                            content_validation_data={"validation_reason": ""},
-                            content_validation_result=False,
-                            content_generation_success=False,
-                            content_generation_error=content_result.error_message,
-                            processing_stage="content_generation",
-                            final_status="content_failed"
-                        )
+                    # 文案生成和验证（带重试机制）
+                    max_retries = 3
+                    content_generation_success = False
+                    content_result = None
+                    content_validation_reason = ""
+                    
+                    for retry_count in range(max_retries):
+                        print(f"\n=== 文案生成尝试 {retry_count + 1}/{max_retries} ===")
+                        
+                        # 文案生成
+                        if retry_count == 0:
+                            # 第一次生成，不传suggestion
+                            content_result = self.content_generator.process(
+                                {
+                                    "query": scenario, 
+                                    "suggestion": "无"
+                                })
+                        else:
+                            # 重试时传递suggestion参数
+                            content_result = self.content_generator.process({
+                                "query": scenario,
+                                "suggestion": content_validation_reason
+                            })
+                            print(f"重试文案生成，建议: {content_validation_reason}")
+                        
+                        if not content_result.success:
+                            # 文案生成失败
+                            print(f"文案生成失败: {content_result.error_message}")
+                            if retry_count == max_retries - 1:  # 最后一次重试也失败
+                                self.content_collector.add_content(
+                                    user_input=user_input,
+                                    persona_detail=self.persona_detail,
+                                    scenario_data={"content": scenario},
+                                    scenario_validation_result=True,
+                                    scenario_validation_reason=scenario_validation_reason,
+                                    content_data={"content": ""},
+                                    content_validation_data={"validation_reason": ""},
+                                    content_validation_result=False,
+                                    content_generation_success=False,
+                                    content_generation_error=content_result.error_message,
+                                    processing_stage="content_generation",
+                                    final_status="content_failed"
+                                )
+                            continue
+                        
+                        print(f"文案生成成功: {content_result.content}")
+                        
+                        # 文案验证
+                        content_validation = self.content_validator.process({"query": content_result.content, "scenario": scenario})
+                        if not content_validation.success:
+                            # 文案验证API调用失败
+                            print(f"文案验证API调用失败: {content_validation.error_message}")
+                            if retry_count == max_retries - 1:  # 最后一次重试也失败
+                                self.content_collector.add_content(
+                                    user_input=user_input,
+                                    persona_detail=self.persona_detail,
+                                    scenario_data={"content": scenario},
+                                    scenario_validation_result=True,
+                                    scenario_validation_reason=scenario_validation_reason,
+                                    content_data={"content": content_result.content},
+                                    content_validation_data={"validation_reason": f"验证API调用失败: {content_validation.error_message}"},
+                                    content_validation_result=False,
+                                    processing_stage="content_validation",
+                                    final_status="validation_failed"
+                                )
+                            continue
+                        
+                        print(f"\ncontent_validation: {content_validation}")
+                        content_validation_json = json.loads(content_validation.content.replace("```json", "").replace("```", ""))
+                        content_validation_passed = content_validation_json.get("result", False)
+                        content_validation_reason = content_validation_json.get("reason", "")
+                        
+                        if content_validation_passed:
+                            # 文案验证通过，跳出重试循环
+                            print(f"文案验证通过: {content_result.content}")
+                            content_generation_success = True
+                            break
+                        else:
+                            # 文案验证未通过
+                            print(f"文案验证未通过 (尝试 {retry_count + 1}/{max_retries}): {content_validation_reason}")
+                            if retry_count == max_retries - 1:  # 最后一次重试也未通过
+                                self.content_collector.add_content(
+                                    user_input=user_input,
+                                    persona_detail=self.persona_detail,
+                                    scenario_data={"content": scenario},
+                                    scenario_validation_result=True,
+                                    scenario_validation_reason=scenario_validation_reason,
+                                    content_data={"content": content_result.content},
+                                    content_validation_data={"validation_reason": content_validation_reason},
+                                    content_validation_result=False,
+                                    processing_stage="content_validation",
+                                    final_status="validation_failed"
+                                )
+                    
+                    # 如果所有重试都失败，跳过当前场景
+                    if not content_generation_success:
+                        print(f"文案生成和验证在 {max_retries} 次尝试后仍然失败，跳过当前场景")
                         continue
-                    
-                    print(f"文案生成成功: {content_result.content}\n")
-                    
-                    # 文案验证
-                    content_validation = self.content_validator.process({"query":content_result.content, "scenario": scenario})
-                    if not content_validation.success:
-                        # 文案验证API调用失败
-                        print(f"文案验证API调用失败: {content_validation.error_message}")
-                        self.content_collector.add_content(
-                            user_input=user_input,
-                            persona_detail=self.persona_detail,
-                            scenario_data={"content": scenario},
-                            scenario_validation_result=True,
-                            scenario_validation_reason=scenario_validation_reason,
-                            content_data={"content": content_result.content},
-                            content_validation_data={"validation_reason": f"验证API调用失败: {content_validation.error_message}"},
-                            content_validation_result=False,
-                            processing_stage="content_validation",
-                            final_status="validation_failed"
-                        )
-                        continue
-                    
-                    print(f"\ncontent_validation: {content_validation}")
-                    content_validation_json = json.loads(content_validation.content.replace("```json", "").replace("```", ""))
-                    content_validation_passed = content_validation_json.get("result", False)
-                    content_validation_reason = content_validation_json.get("reason", "")
-                    
-                    if not content_validation_passed:
-                        # 文案验证未通过
-                        print(f"文案验证未通过: {content_validation_reason}")
-                        self.content_collector.add_content(
-                            user_input=user_input,
-                            persona_detail=self.persona_detail,
-                            scenario_data={"content": scenario},
-                            scenario_validation_result=True,
-                            scenario_validation_reason=scenario_validation_reason,
-                            content_data={"content": content_result.content},
-                            content_validation_data={"validation_reason": content_validation_reason},
-                            content_validation_result=False,
-                            processing_stage="content_validation",
-                            final_status="validation_failed"
-                        )
-                        continue
-                    
-                    print(f"文案验证通过: {content_result.content}")
                     
                     # 商品推荐
                     product_result = self.product_recommender.process({"query":content_result.content})
@@ -211,7 +244,36 @@ class WellnessWorkflow:
                     
                     if product_result.success:
                         print(f"\n商品推荐成功: {product_result.content}")
-                        recommended_products = product_result.content
+                        recommended_products = product_result.content.replace("```json", "").replace("```", "")
+                        
+                        # 解析JSON数据
+                        product_goods_list = ""
+                        product_recommendation_reason = ""
+                        try:
+                            product_data = json.loads(recommended_products)
+                            # 提取商品列表和推荐原因
+                            goods_list = product_data.get('goods_list', [])
+                            reason = product_data.get('reason', '')
+                            
+                            # 格式化商品列表
+                            if goods_list:
+                                product_goods_list = json.dumps(goods_list, ensure_ascii=False, indent=2)
+                            else:
+                                product_goods_list = "无推荐商品"
+                            
+                            product_recommendation_reason = reason
+                            
+                            # 将解析后的JSON数据格式化存储
+                            recommended_products = json.dumps(product_data, ensure_ascii=False, indent=2)
+                            print(f"解析商品推荐JSON: {product_data}")
+                            print(f"商品列表: {product_goods_list}")
+                            print(f"推荐原因: {product_recommendation_reason}")
+                        except json.JSONDecodeError as e:
+                            print(f"JSON解析失败: {e}, 原始数据: {recommended_products}")
+                            # 如果解析失败，保持原始字符串
+                            product_goods_list = "JSON解析失败"
+                            product_recommendation_reason = "JSON解析失败"
+                        
                         product_success = True
                     else:
                         print(f"\n商品推荐失败: {product_result.error_message}")
@@ -228,6 +290,8 @@ class WellnessWorkflow:
                         content_validation_data={"validation_reason": content_validation_reason},
                         content_validation_result=True,
                         recommended_products=recommended_products,
+                        product_goods_list=product_goods_list,
+                        product_recommendation_reason=product_recommendation_reason,
                         product_recommendation_success=product_success,
                         product_recommendation_error=product_error,
                         processing_stage="completed",

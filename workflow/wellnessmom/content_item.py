@@ -38,7 +38,9 @@ class ContentItem:
     content_generation_error: str = ""  # 文案生成错误信息
     
     # 推荐商品信息（可选）
-    recommended_products: str = ""  # 推荐商品列表
+    recommended_products: str = ""  # 推荐商品列表（JSON格式）
+    product_goods_list: str = ""  # 商品列表（解析后的商品信息）
+    product_recommendation_reason: str = ""  # 商品推荐原因
     product_recommendation_success: bool = False  # 商品推荐是否成功
     product_recommendation_error: str = ""  # 商品推荐错误信息
     
@@ -75,7 +77,8 @@ class ContentItem:
             'scenario_title', 'scenario_description', 'scenario_validation', 'scenario_validation_reason',
             'content_title', 'content_body', 'content_validation', 'content_validation_feedback',
             'content_generation_success', 'content_generation_error',
-            'recommended_products', 'product_recommendation_success', 'product_recommendation_error',
+            'recommended_products', 'product_goods_list', 'product_recommendation_reason',
+            'product_recommendation_success', 'product_recommendation_error',
             'processing_stage', 'final_status'
         ]
         
@@ -161,6 +164,8 @@ class ContentCollector:
                    content_validation_data: Dict[str, Any],
                    content_validation_result: bool,
                    recommended_products: str = "",
+                   product_goods_list: str = "",
+                   product_recommendation_reason: str = "",
                    scenario_validation_reason: str = "",
                    content_generation_success: bool = True,
                    content_generation_error: str = "",
@@ -203,6 +208,8 @@ class ContentCollector:
             content_generation_success=content_generation_success,
             content_generation_error=content_generation_error,
             recommended_products=recommended_products,
+            product_goods_list=product_goods_list,
+            product_recommendation_reason=product_recommendation_reason,
             product_recommendation_success=product_recommendation_success,
             product_recommendation_error=product_recommendation_error,
             processing_stage=processing_stage,
