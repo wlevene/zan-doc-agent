@@ -22,7 +22,10 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
 # 先导入本地模块
-from content_item import ContentCollector
+try:
+    from .content_item import ContentCollector
+except ImportError:
+    from content_item import ContentCollector
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent.parent
