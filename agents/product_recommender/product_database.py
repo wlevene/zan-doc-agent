@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 import json
+import pandas as pd
+import os
 
 @dataclass
 class ProductInfo:
@@ -40,7 +42,116 @@ class ProductDatabase:
         self._products = self._initialize_mock_data()
     
     def _initialize_mock_data(self) -> Dict[str, ProductInfo]:
-        """初始化模拟商品数据"""
+        """从Excel文件读取商品数据"""
+        try:
+            return self._load_from_excel()
+        except Exception as e:
+            print(f"从Excel读取数据失败: {e}，使用默认数据")
+            return self._get_fallback_data()
+    
+    def _load_from_excel(self) -> Dict[str, ProductInfo]:
+        """从goods.xlsx读取商品数据"""
+        # 获取当前文件所在目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        excel_path = os.path.join(current_dir, 'goods.xlsx')
+        
+        # 读取Excel文件
+        df = pd.read_excel(excel_path, sheet_name='sheet1')
+        
+        products = {}
+        
+        for index, row in df.iterrows():
+            # 跳过无效行
+            if pd.isna(row['商品id']) or pd.isna(row['商品名称']):
+                continue
+                
+            # 字段映射和数据处理
+            product_id = str(int(row['商品id'])) if not pd.isna(row['商品id']) else f"product_{index}"
+            name = str(row['商品名称']) if not pd.isna(row['商品名称']) else "未知商品"
+            description = str(row['分享描述']) if not pd.isna(row['分享描述']) else str(row['商品卖点']) if not pd.isna(row['商品卖点']) else "暂无描述"
+            price = float(row['价格（元）']) if not pd.isna(row['价格（元）']) else 0.0
+            category = self._extract_category(row['商品分组']) if not pd.isna(row['商品分组']) else "其他"
+            brand = "正安" if "正安" in name else "未知品牌"
+            image_url = str(row['商品链接']) if not pd.isna(row['商品链接']) else ""
+            features = self._extract_features(row['商品分组'], row['商品卖点'])
+            target_audience = self._extract_target_audience(row['商品分组'])
+            stock = int(row['库存']) if not pd.isna(row['库存']) else 100
+            
+            product = ProductInfo(
+                product_id=product_id,
+                name=name,
+                description=description,
+                price=price,
+                category=category,
+                brand=brand,
+                image_url=image_url,
+                features=features,
+                target_audience=target_audience,
+                stock=stock
+            )
+            
+            products[product_id] = product
+            
+        return products
+    
+    def _extract_category(self, group_info: str) -> str:
+        """从商品分组信息中提取分类"""
+        if pd.isna(group_info):
+            return "其他"
+            
+        group_str = str(group_info)
+        if "草本洗护" in group_str:
+            return "洗护用品"
+        elif "道地风物" in group_str:
+            return "保健品"
+        elif "家居生活" in group_str:
+            return "家居用品"
+        else:
+            return "健康食品"
+    
+    def _extract_features(self, group_info, selling_point) -> List[str]:
+        """从商品信息中提取特性"""
+        features = []
+        
+        # 从商品分组提取特性
+        if not pd.isna(group_info):
+            group_str = str(group_info)
+            if "草本" in group_str:
+                features.append("天然草本")
+            if "道地" in group_str:
+                features.append("道地原材")
+            if "家庭养护" in group_str:
+                features.append("家庭适用")
+        
+        # 从商品卖点提取特性
+        if not pd.isna(selling_point):
+            selling_str = str(selling_point)
+            if "温和" in selling_str:
+                features.append("温和配方")
+            if "天然" in selling_str:
+                features.append("天然成分")
+            if "精选" in selling_str:
+                features.append("精选原料")
+        
+        return features if features else ["优质产品"]
+    
+    def _extract_target_audience(self, group_info) -> str:
+        """从商品分组信息中提取目标用户群体"""
+        if pd.isna(group_info):
+            return "一般用户"
+            
+        group_str = str(group_info)
+        if "家庭养护" in group_str:
+            return "注重健康的家庭"
+        elif "湿热体质" in group_str:
+            return "湿热体质人群"
+        elif "阴虚体质" in group_str:
+            return "阴虚体质人群"
+        else:
+            return "养生爱好者"
+    
+    def _get_fallback_data(self) -> Dict[str, ProductInfo]:
+        """获取备用数据（原硬编码数据）"""
         products = {
             "wellness_001": ProductInfo(
                 product_id="wellness_001",
@@ -63,39 +174,6 @@ class ProductDatabase:
                 image_url="https://example.com/images/protein_powder.jpg",
                 features=["高蛋白含量", "易吸收", "多种口味", "无人工色素"],
                 target_audience="健身爱好者"
-            ),
-            "wellness_003": ProductInfo(
-                product_id="wellness_003",
-                name="维生素C片",
-                description="天然维生素C，增强免疫力，美白肌肤，每日一片健康守护",
-                price=89.0,
-                category="保健品",
-                brand="健康伴侣",
-                image_url="https://example.com/images/vitamin_c.jpg",
-                features=["天然提取", "高含量", "易吞咽", "无副作用"],
-                target_audience="关注免疫力的人群"
-            ),
-            "wellness_004": ProductInfo(
-                product_id="wellness_004",
-                name="瑜伽垫",
-                description="环保TPE材质，防滑耐用，适合各种瑜伽和健身运动",
-                price=128.0,
-                category="运动器材",
-                brand="禅意生活",
-                image_url="https://example.com/images/yoga_mat.jpg",
-                features=["环保材质", "防滑设计", "易清洁", "便携收纳"],
-                target_audience="瑜伽爱好者"
-            ),
-            "wellness_005": ProductInfo(
-                product_id="wellness_005",
-                name="蜂蜜柠檬茶",
-                description="天然蜂蜜配新鲜柠檬，清香怡人，富含维生素，温润养生",
-                price=45.0,
-                category="健康饮品",
-                brand="蜜语茶香",
-                image_url="https://example.com/images/honey_lemon_tea.jpg",
-                features=["天然蜂蜜", "新鲜柠檬", "无添加剂", "温润养生"],
-                target_audience="注重养生的人群"
             )
         }
         return products

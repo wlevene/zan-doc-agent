@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from dify.dify_client import DifyClient, DifyAPIError
+from .product_database import ProductDatabase
 
 
 class AgentType(Enum):
@@ -156,6 +157,9 @@ class ProductRecommenderAgent(BaseAgent):
             agent_type=AgentType.PRODUCT_RECOMMENDER
         )
         
+        # 初始化商品数据库
+        self.product_db = ProductDatabase()
+        
         super().__init__(dify_client, config)
     
     def process(self, params: Dict[str, Any]) -> AgentResponse:
@@ -188,6 +192,12 @@ class ProductRecommenderAgent(BaseAgent):
             
             # 添加query到inputs中（某些Dify应用需要）
             final_inputs["query"] = query
+            
+            # 自动补齐goods_list参数
+            goods_list = params.get('goods_list')
+            if not goods_list:  # 如果goods_list为空或None，自动补齐
+                goods_list = self._get_goods_list_json()
+                final_inputs["goods_list"] = goods_list
             
             # 将所有其他参数添加到inputs中（除了特殊参数）
             special_params = {'query', 'inputs', 'user'}
@@ -245,6 +255,12 @@ class ProductRecommenderAgent(BaseAgent):
             
             # 添加query到inputs中
             final_inputs["query"] = query
+            
+            # 自动补齐goods_list参数
+            goods_list = params.get('goods_list')
+            if not goods_list:  # 如果goods_list为空或None，自动补齐
+                goods_list = self._get_goods_list_json()
+                final_inputs["goods_list"] = goods_list
             
             # 将所有其他参数添加到inputs中
             special_params = {'query', 'inputs', 'user'}
@@ -305,3 +321,38 @@ class ProductRecommenderAgent(BaseAgent):
         
         full_query = "\n".join(query_parts)
         return self._build_query(full_query)
+    
+    def _get_goods_list_json(self) -> str:
+        """获取商品列表的JSON格式数据
+        
+        Returns:
+            str: 商品列表的JSON字符串
+        """
+        try:
+            # 获取所有商品信息
+            all_products = self.product_db.get_all_products()
+            
+            # 转换为简化的商品列表格式
+            goods_list = []
+            for product in all_products:
+                goods_item = {
+                    "id": product.product_id,
+                    "name": product.name,
+                    "description": product.description,
+                    "price": product.price,
+                    "category": product.category,
+                    "brand": product.brand,
+                    "features": product.features,
+                    "target_audience": product.target_audience,
+                    "rating": product.rating
+                }
+                goods_list.append(goods_item)
+            
+            # 转换为JSON字符串
+            import json
+            return json.dumps(goods_list, ensure_ascii=False, indent=2)
+            
+        except Exception as e:
+            # 如果出现异常，返回空列表的JSON
+            import json
+            return json.dumps([], ensure_ascii=False)

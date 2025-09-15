@@ -1,0 +1,4 @@
+goods*.xlsx
+~$goods*.xlsx
+__pycache__
+tmp*.py

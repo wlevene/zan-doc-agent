@@ -237,7 +237,9 @@ class WellnessWorkflow:
                         continue
                     
                     # 商品推荐
-                    product_result = self.product_recommender.process({"query":content_result.content})
+                    product_result = self.product_recommender.process({
+                        "query": content_result.content
+                    })
                     recommended_products = ""
                     product_success = False
                     product_error = ""
