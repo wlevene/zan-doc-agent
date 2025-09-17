@@ -85,6 +85,40 @@ class ContentCollector:
         """清空所有数据"""
         self.items.clear()
     
+    def _get_original_content(self, item: ContentItem) -> str:
+        """获取原始文案内容"""
+        if not item.content_data:
+            return ""
+        
+        # 如果明确标记为重写且有original_content字段，使用original_content
+        if (item.content_data.get("rewritten", False) and 
+            "original_content" in item.content_data):
+            return item.content_data.get("original_content", "")
+        
+        # 否则使用content作为原始文案
+        return item.content_data.get("content", "")
+    
+    def _clean_text_for_excel(self, text: str) -> str:
+        """清理文本，确保Excel中不会出现多行"""
+        if not text:
+            return ""
+        
+        # 转换为字符串（防止非字符串类型）
+        text = str(text)
+        
+        # 替换所有可能导致换行的字符
+        text = text.replace('\n', ' ')  # 换行符替换为空格
+        text = text.replace('\r', ' ')  # 回车符替换为空格
+        text = text.replace('\t', ' ')  # 制表符替换为空格
+        
+        # 清理多余的空格
+        text = ' '.join(text.split())
+        
+        # 移除可能导致Excel解析问题的字符
+        text = text.replace('"', "'")  # 双引号替换为单引号
+        
+        return text
+    
     def __len__(self) -> int:
         """返回数据总数"""
         return len(self.items)
@@ -109,23 +143,22 @@ class ContentCollector:
             data_rows = []
             for item in self.items:
                 row = {
-                    "用户输入": item.user_input,
-                    "人设详情": item.persona_detail,
-                    "场景内容": item.scenario_data.get("content", "") if item.scenario_data else "",
+                    "用户输入": self._clean_text_for_excel(item.user_input),
+                    "人设详情": self._clean_text_for_excel(item.persona_detail),
+                    "场景内容": self._clean_text_for_excel(item.scenario_data.get("content", "") if item.scenario_data else ""),
                     "场景验收结果": "通过" if item.scenario_validation_result else "未通过",
-                    "场景验收原因": item.scenario_validation_reason,
-                    "原始文案": item.content_data.get("original_content", "") if item.content_data else "",
-                    "重写后文案": item.content_data.get("content", "") if item.content_data else "",
-                    "重写原因": item.content_data.get("rewrite_reason", "") if item.content_data else "",
+                    "场景验收原因": self._clean_text_for_excel(item.scenario_validation_reason),
+                    "文案内容": self._clean_text_for_excel(self._get_original_content(item)),
                     "文案验收结果": "通过" if item.content_validation_result else "未通过",
-                    "文案验收原因": item.content_validation_data.get("validation_reason", "") if item.content_validation_data else "",
+                    "文案验收原因": self._clean_text_for_excel(item.content_validation_data.get("validation_reason", "") if item.content_validation_data else ""),
+                    "重写后文案": self._clean_text_for_excel(item.content_data.get("content", "") if item.content_data else ""),
                     "推荐商品数量": len(item.recommended_products) if item.recommended_products else 0,
-                    "商品推荐原因": item.product_recommendation_reason,
+                    "商品推荐原因": self._clean_text_for_excel(item.product_recommendation_reason),
                     "商品推荐成功": "是" if item.product_recommendation_success else "否",
-                    "商品推荐错误": item.product_recommendation_error,
-                    "处理阶段": item.processing_stage,
-                    "最终状态": item.final_status,
-                    "创建时间": item.created_at
+                    "商品推荐错误": self._clean_text_for_excel(item.product_recommendation_error),
+                    "处理阶段": self._clean_text_for_excel(item.processing_stage),
+                    "最终状态": self._clean_text_for_excel(item.final_status),
+                    "创建时间": self._clean_text_for_excel(item.created_at)
                 }
                 
                 # 添加推荐商品详情
@@ -138,20 +171,28 @@ class ContentCollector:
                             product_data = json.loads(item.recommended_products)
                             goods_list = product_data.get('goods_list', [])
                             for product_name in goods_list:
-                                products_info.append(f"商品名称:{product_name}")
+                                # 清理商品名称，确保不包含换行符
+                                clean_name = self._clean_text_for_excel(product_name)
+                                products_info.append(f"商品名称:{clean_name}")
                         except (json.JSONDecodeError, AttributeError):
-                            # 如果解析失败，直接使用字符串
-                            products_info.append(item.recommended_products)
+                            # 如果解析失败，直接使用字符串，但要清理
+                            clean_products = self._clean_text_for_excel(item.recommended_products)
+                            products_info.append(clean_products)
                     elif isinstance(item.recommended_products, list):
                         # 如果是列表，按原来的方式处理
                         for product in item.recommended_products:
                             if isinstance(product, dict):
-                                product_info = f"ID:{product.get('id', 'N/A')}, 名称:{product.get('name', 'N/A')}, 价格:{product.get('price', 'N/A')}"
+                                # 清理每个字段
+                                product_id = self._clean_text_for_excel(str(product.get('id', 'N/A')))
+                                product_name = self._clean_text_for_excel(str(product.get('name', 'N/A')))
+                                product_price = self._clean_text_for_excel(str(product.get('price', 'N/A')))
+                                product_info = f"ID:{product_id}, 名称:{product_name}, 价格:{product_price}"
                             else:
-                                product_info = str(product)
+                                product_info = self._clean_text_for_excel(str(product))
                             products_info.append(product_info)
                     
-                    row["推荐商品详情"] = "; ".join(products_info)
+                    # 使用分号分隔，并确保整个字符串也被清理
+                    row["推荐商品详情"] = self._clean_text_for_excel("; ".join(products_info))
                 else:
                     row["推荐商品详情"] = ""
                 
