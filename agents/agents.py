@@ -22,6 +22,7 @@ class AgentType(Enum):
     """Agent 类型枚举"""
     CONTENT_VALIDATOR = "content_validator"  # 文案场景验收器
     SCENARIO_GENERATOR = "scenario_generator"  # 场景生成器
+    CONTENT_REWRITER = "content_rewriter"  # 文案重写大师
     WELLNESS_MOM = "wellness_mom"  # 养生妈妈
     CUSTOM = "custom"  # 自定义类型
 
