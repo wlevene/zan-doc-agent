@@ -215,6 +215,7 @@ class ContentRewriterAgent(BaseAgent):
          
             # 获取可选参数，处理text和query的兼容性
             text = params.get('query')  # 在非流式模式下，query参数实际是原始文案
+            goods = params.get('goods')  # 商品信息
         
             inputs = params.get('inputs')
             user = params.get('user', 'content_rewriter')
@@ -226,15 +227,17 @@ class ContentRewriterAgent(BaseAgent):
             final_inputs["persona"] = persona
             final_inputs["scenario"] = scenario
             final_inputs["query"] = text
+            if goods:
+                final_inputs["goods"] = goods
             
             # 将所有其他参数添加到inputs中（除了特殊参数）
-            special_params = {'persona', 'scenario', 'query', 'inputs', 'user'}
+            special_params = {'persona', 'scenario', 'query', 'goods', 'inputs', 'user'}
             for key, value in params.items():
                 if key not in special_params and value is not None:
                     final_inputs[key] = value
             
             # 构建查询
-            full_query = self._build_rewrite_query(persona, scenario, text)
+            full_query = self._build_rewrite_query(persona, scenario, text, goods)
             
             # 调用 Dify API
             raw_response = self.client.completion_messages_blocking(
@@ -328,24 +331,25 @@ class ContentRewriterAgent(BaseAgent):
                 raw_response={"error": str(e)}
             )
     
-    def _build_rewrite_query(self, persona: str, scenario: str, text: str) -> str:
+    def _build_rewrite_query(self, persona: str, scenario: str, text: str, goods: str = None) -> str:
         """构建文案重写查询
         
         Args:
             persona: 人设描述
             scenario: 场景描述
-            query: 原始文案
+            text: 原始文案
+            goods: 商品信息（可选）
             
         Returns:
             str: 完整的查询字符串
         """
-        return f"""
-人设信息：
-{persona}
-
-场景信息：
-{scenario}
-
-原始文案：
-{text}
-        """.strip()
+        query_parts = [
+            f"人设信息：\n{persona}",
+            f"场景信息：\n{scenario}",
+            f"原始文案：\n{text}"
+        ]
+        
+        if goods:
+            query_parts.insert(-1, f"推荐商品信息：\n{goods}")
+        
+        return "\n\n".join(query_parts)

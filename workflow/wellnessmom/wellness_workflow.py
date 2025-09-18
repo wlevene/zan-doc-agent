@@ -240,41 +240,8 @@ class WellnessWorkflow:
                         content_validation_reason = content_validation_json.get("reason", "")
                         
                         if content_validation_passed:
-                            # 文案验证通过，但仍需要进行重写处理
+                            # 文案验证通过，继续后续流程
                             print(f"文案验证通过: {content_result.content}")
-                            print(f"🔄 开始强制重写处理（无论验收是否通过都要重写）")
-                            
-                            # 保存原始文案
-                            original_content = content_result.content
-                            
-                            # 使用文案重写大师重写文案
-                            print(f"📝 准备重写文案: {original_content}")
-                            print(f"👤 重写参数 - 人设: {self.persona_detail[:100]}...")
-                            print(f"🎬 重写参数 - 场景: {scenario}")
-                            
-                            rewrite_result = self.content_rewriter.process({
-                                "persona": self.persona_detail,
-                                "scenario": scenario,
-                                "query": original_content
-                            })
-                            
-                            if rewrite_result.success:
-                                print(f"✅ 强制重写成功!")
-                                print(f"📝 重写后文案内容: {rewrite_result.content}")
-                                print(f"📊 文案长度变化: {len(original_content)} → {len(rewrite_result.content)}")
-                                
-                                # 使用重写后的文案
-                                content_result = rewrite_result
-                                
-                                # 重写成功，将在后续统一记录完整数据
-                                print(f"📋 强制重写成功，将在后续统一记录完整数据")
-                            else:
-                                print(f"❌ 强制重写失败: {rewrite_result.error_message}")
-                                print(f"🔄 使用原始文案继续流程")
-                                
-                                # 重写失败，使用原始文案，将在后续统一记录完整数据
-                                print(f"📋 重写失败，使用原始文案，将在后续统一记录完整数据")
-                            
                             content_generation_success = True
                             break
                         else:
@@ -335,9 +302,90 @@ class WellnessWorkflow:
                             product_recommendation_reason = "JSON解析失败"
                         
                         product_success = True
+                        
+                        # 商品推荐成功后，进行文案重写处理
+                        print(f"🔄 开始文案重写处理（基于推荐商品优化文案）")
+                        
+                        # 保存原始文案
+                        original_content = content_result.content
+                        
+                        # 准备商品信息用于重写
+                        goods_info = ""
+                        if product_goods_list and product_goods_list != "无推荐商品" and product_goods_list != "JSON解析失败":
+                            try:
+                                goods_data = json.loads(product_goods_list)
+                                goods_descriptions = []
+                                for good in goods_data:
+                                    if isinstance(good, dict):
+                                        name = good.get('name', '未知商品')
+                                        description = good.get('description', '无描述')
+                                        goods_descriptions.append(f"商品名称：{name}\n商品描述：{description}")
+                                goods_info = "\n\n".join(goods_descriptions)
+                            except:
+                                goods_info = product_goods_list
+                        
+                        # 使用文案重写大师重写文案
+                        print(f"📝 准备重写文案: {original_content}")
+                        print(f"👤 重写参数 - 人设: {self.persona_detail[:100]}...")
+                        print(f"🎬 重写参数 - 场景: {scenario}")
+                        print(f"🛍️ 重写参数 - 商品信息: {goods_info[:200]}..." if goods_info else "🛍️ 重写参数 - 商品信息: 无")
+                        
+                        rewrite_result = self.content_rewriter.process({
+                            "persona": self.persona_detail,
+                            "scenario": scenario,
+                            "query": original_content,
+                            "goods": goods_info if goods_info else None
+                        })
+                        
+                        if rewrite_result.success:
+                            print(f"✅ 文案重写成功!")
+                            print(f"📝 重写后文案内容: {rewrite_result.content}")
+                            print(f"📊 文案长度变化: {len(original_content)} → {len(rewrite_result.content)}")
+                            
+                            # 使用重写后的文案
+                            content_result = rewrite_result
+                            
+                            print(f"📋 文案重写成功，将在后续统一记录完整数据")
+                        else:
+                            print(f"❌ 文案重写失败: {rewrite_result.error_message}")
+                            print(f"🔄 使用原始文案继续流程")
+                            
+                            print(f"📋 重写失败，使用原始文案，将在后续统一记录完整数据")
                     else:
                         print(f"\n商品推荐失败: {product_result.error_message}")
                         product_error = product_result.error_message
+                        
+                        # 商品推荐失败，仍然尝试重写文案（不传入商品信息）
+                        print(f"🔄 商品推荐失败，但仍进行文案重写处理")
+                        
+                        # 保存原始文案
+                        original_content = content_result.content
+                        
+                        # 使用文案重写大师重写文案（不传入商品信息）
+                        print(f"📝 准备重写文案: {original_content}")
+                        print(f"👤 重写参数 - 人设: {self.persona_detail[:100]}...")
+                        print(f"🎬 重写参数 - 场景: {scenario}")
+                        
+                        rewrite_result = self.content_rewriter.process({
+                            "persona": self.persona_detail,
+                            "scenario": scenario,
+                            "query": original_content
+                        })
+                        
+                        if rewrite_result.success:
+                            print(f"✅ 文案重写成功!")
+                            print(f"📝 重写后文案内容: {rewrite_result.content}")
+                            print(f"📊 文案长度变化: {len(original_content)} → {len(rewrite_result.content)}")
+                            
+                            # 使用重写后的文案
+                            content_result = rewrite_result
+                            
+                            print(f"📋 文案重写成功，将在后续统一记录完整数据")
+                        else:
+                            print(f"❌ 文案重写失败: {rewrite_result.error_message}")
+                            print(f"🔄 使用原始文案继续流程")
+                            
+                            print(f"📋 重写失败，使用原始文案，将在后续统一记录完整数据")
                     
                     # 收集完整的文案数据
                     # 构建content_data，如果进行了重写，需要保存原始内容和重写标记
