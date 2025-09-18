@@ -266,47 +266,14 @@ class WellnessWorkflow:
                                 # 使用重写后的文案
                                 content_result = rewrite_result
                                 
-                                # 记录重写成功的数据
-                                self.content_collector.add_content(
-                                    user_input=user_input,
-                                    persona_detail=self.persona_detail,
-                                    scenario_data={"content": scenario},
-                                    scenario_validation_result=True,
-                                    scenario_validation_reason=scenario_validation_reason,
-                                    content_data={
-                                        "content": rewrite_result.content, 
-                                        "rewritten": True,
-                                        "original_content": original_content,
-                                        "rewrite_reason": "强制重写处理（每个文案都要重写）"
-                                    },
-                                    content_validation_data={"validation_reason": "原文案验收通过，但进行强制重写"},
-                                    content_validation_result=True,
-                                    processing_stage="content_rewrite",
-                                    final_status="rewrite_success"
-                                )
-                                print(f"📋 强制重写数据已记录到数据收集器")
+                                # 重写成功，将在后续统一记录完整数据
+                                print(f"📋 强制重写成功，将在后续统一记录完整数据")
                             else:
                                 print(f"❌ 强制重写失败: {rewrite_result.error_message}")
                                 print(f"🔄 使用原始文案继续流程")
                                 
-                                # 重写失败，使用原始文案并记录
-                                self.content_collector.add_content(
-                                    user_input=user_input,
-                                    persona_detail=self.persona_detail,
-                                    scenario_data={"content": scenario},
-                                    scenario_validation_result=True,
-                                    scenario_validation_reason=scenario_validation_reason,
-                                    content_data={
-                                        "content": original_content, 
-                                        "rewritten": False,
-                                        "original_content": original_content,
-                                        "rewrite_reason": f"强制重写失败: {rewrite_result.error_message}"
-                                    },
-                                    content_validation_data={"validation_reason": content_validation_reason},
-                                    content_validation_result=True,
-                                    processing_stage="content_validation",
-                                    final_status="validation_passed"
-                                )
+                                # 重写失败，使用原始文案，将在后续统一记录完整数据
+                                print(f"📋 重写失败，使用原始文案，将在后续统一记录完整数据")
                             
                             content_generation_success = True
                             break
@@ -326,66 +293,6 @@ class WellnessWorkflow:
                                     processing_stage="content_validation",
                                     final_status="validation_failed"
                                 )
-                    
-                    # 如果所有重试都失败，尝试使用文案重写大师进行兜底处理
-                    if not content_generation_success:
-                        print(f"文案生成和验证在 {max_retries} 次尝试后仍然失败，尝试使用文案重写大师进行兜底处理")
-                        
-                        # 使用文案重写大师重写最后一次生成的文案
-                        if content_result and content_result.content:
-                            print(f"🔧 准备使用文案重写大师进行兜底处理")
-                            print(f"📝 原始文案内容: {content_result.content}")
-                            print(f"👤 重写参数 - 人设: {self.persona_detail[:100]}...")
-                            print(f"🎬 重写参数 - 场景: {scenario}")
-                            
-                            rewrite_result = self.content_rewriter.process({
-                                "persona": self.persona_detail,
-                                "scenario": scenario,
-                                "query": content_result.content
-                            })
-                            
-                            if rewrite_result.success:
-                                print(f"✅ 兜底重写成功!")
-                                print(f"📝 重写后文案内容: {rewrite_result.content}")
-                                print(f"📊 文案长度变化: {len(content_result.content)} → {len(rewrite_result.content)}")
-                                print(f"🔄 兜底重写处理完成，标记为验收通过")
-                                
-                                # 保存原始文案用于记录
-                                original_content = content_result.content
-                                content_result = rewrite_result
-                                content_generation_success = True
-                                
-                                # 记录兜底重写成功的数据，包含原始文案信息
-                                self.content_collector.add_content(
-                                    user_input=user_input,
-                                    persona_detail=self.persona_detail,
-                                    scenario_data={"content": scenario},
-                                    scenario_validation_result=True,
-                                    scenario_validation_reason=scenario_validation_reason,
-                                    content_data={
-                                        "content": rewrite_result.content, 
-                                        "rewritten": True,
-                                        "original_content": original_content,
-                                        "rewrite_reason": "文案生成验收失败后的兜底重写处理"
-                                    },
-                                    content_validation_data={"validation_reason": "文案重写大师兜底处理"},
-                                    content_validation_result=True,
-                                    processing_stage="content_rewrite",
-                                    final_status="rewrite_success"
-                                )
-                                print(f"📋 兜底重写数据已记录到数据收集器")
-                            else:
-                                print(f"❌ 兜底重写失败: {rewrite_result.error_message}")
-                                print(f"🔍 重写失败详情: {rewrite_result.raw_response if hasattr(rewrite_result, 'raw_response') else '无详细信息'}")
-                        
-                        # 如果重写也失败，跳过当前场景
-                        if not content_generation_success:
-                            print(f"⚠️  文案重写大师也无法处理，跳过当前场景")
-                            print(f"📋 场景内容: {scenario}")
-                            print(f"🔄 将继续处理下一个场景...")
-                            continue
-                        else:
-                            print(f"🎉 兜底重写处理完成，继续后续流程")
                     
                     # 商品推荐
                     product_result = self.product_recommender.process({
@@ -433,13 +340,25 @@ class WellnessWorkflow:
                         product_error = product_result.error_message
                     
                     # 收集完整的文案数据
+                    # 构建content_data，如果进行了重写，需要保存原始内容和重写标记
+                    content_data = {"content": content_result.content}
+                    
+                    # 检查是否进行了重写（通过比较original_content变量是否存在且不同）
+                    if 'original_content' in locals() and original_content != content_result.content:
+                        content_data.update({
+                            "rewritten": True,
+                            "original_content": original_content,
+                            "rewrite_reason": "强制重写处理"
+                        })
+                        print(f"📋 记录重写信息: 原始长度={len(original_content)}, 重写后长度={len(content_result.content)}")
+                    
                     self.content_collector.add_content(
                         user_input=user_input,
                         persona_detail=self.persona_detail,
                         scenario_data={"content": scenario},
                         scenario_validation_result=True,
                         scenario_validation_reason=scenario_validation_reason,
-                        content_data={"content": content_result.content},
+                        content_data=content_data,
                         content_validation_data={"validation_reason": content_validation_reason},
                         content_validation_result=True,
                         recommended_products=recommended_products,

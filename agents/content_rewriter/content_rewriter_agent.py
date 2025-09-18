@@ -214,10 +214,8 @@ class ContentRewriterAgent(BaseAgent):
                 )
          
             # 获取可选参数，处理text和query的兼容性
-            query = params.get('query')
-            
-          
-            
+            text = params.get('query')  # 在非流式模式下，query参数实际是原始文案
+        
             inputs = params.get('inputs')
             user = params.get('user', 'content_rewriter')
             
@@ -227,7 +225,7 @@ class ContentRewriterAgent(BaseAgent):
             # 添加核心参数到inputs中
             final_inputs["persona"] = persona
             final_inputs["scenario"] = scenario
-            final_inputs["query"] = query
+            final_inputs["query"] = text
             
             # 将所有其他参数添加到inputs中（除了特殊参数）
             special_params = {'persona', 'scenario', 'query', 'inputs', 'user'}
@@ -236,11 +234,11 @@ class ContentRewriterAgent(BaseAgent):
                     final_inputs[key] = value
             
             # 构建查询
-            # full_query = self._build_rewrite_query(persona, scenario, query)
+            full_query = self._build_rewrite_query(persona, scenario, text, rewrite_instruction)
             
             # 调用 Dify API
             raw_response = self.client.completion_messages_blocking(
-                query=query,
+                query=full_query,
                 inputs=final_inputs,
                 user=user
             )
@@ -351,5 +349,6 @@ class ContentRewriterAgent(BaseAgent):
 场景信息：
 {scenario}
 
-
+原始文案：
+{text}
         """.strip()
