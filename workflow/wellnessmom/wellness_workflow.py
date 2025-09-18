@@ -108,7 +108,12 @@ class WellnessWorkflow:
             print(f"scenario_array: {scenario_array}")
 
             # 步骤2: 场景验证和处理
+            index = 0
             for scenario in scenario_array:
+                index = index + 1
+
+                if index > 1:
+                    break
                 print(f"\n🔍 开始处理场景: {scenario}")
                 try:
                     # 场景验证
@@ -202,6 +207,7 @@ class WellnessWorkflow:
                                     content_validation_result=False,
                                     content_generation_success=False,
                                     content_generation_error=content_result.error_message,
+                                    product_ids=[],  # 新增：空的商品ID列表
                                     processing_stage="content_generation",
                                     final_status="content_failed"
                                 )
@@ -229,6 +235,7 @@ class WellnessWorkflow:
                                     content_data={"content": content_result.content},
                                     content_validation_data={"validation_reason": f"验证API调用失败: {content_validation.error_message}"},
                                     content_validation_result=False,
+                                    product_ids=[],  # 新增：空的商品ID列表
                                     processing_stage="content_validation",
                                     final_status="validation_failed"
                                 )
@@ -257,6 +264,7 @@ class WellnessWorkflow:
                                     content_data={"content": content_result.content},
                                     content_validation_data={"validation_reason": content_validation_reason},
                                     content_validation_result=False,
+                                    product_ids=[],  # 新增：空的商品ID列表
                                     processing_stage="content_validation",
                                     final_status="validation_failed"
                                 )
@@ -268,23 +276,43 @@ class WellnessWorkflow:
                     recommended_products = ""
                     product_success = False
                     product_error = ""
+                    # 初始化商品相关变量，确保在所有情况下都有定义
+                    product_goods_list = ""
+                    product_recommendation_reason = ""
+                    product_ids = []
                     
                     if product_result.success:
                         print(f"\n商品推荐成功: {product_result.content}")
                         recommended_products = product_result.content.replace("```json", "").replace("```", "")
                         
                         # 解析JSON数据
-                        product_goods_list = ""
-                        product_recommendation_reason = ""
                         try:
                             product_data = json.loads(recommended_products)
-                            # 提取商品列表和推荐原因
-                            goods_list = product_data.get('goods_list', [])
+                            # 提取商品信息和推荐原因
                             reason = product_data.get('reason', '')
+                            
+                            # 支持两种数据结构：goods_list（数组）或 goods（单个对象）
+                            goods_list = []
+                            if 'goods_list' in product_data:
+                                # 旧格式：goods_list 数组
+                                goods_list = product_data.get('goods_list', [])
+                            elif 'goods' in product_data:
+                                # 新格式：goods 单个对象
+                                goods_obj = product_data.get('goods')
+                                if goods_obj:
+                                    goods_list = [goods_obj]  # 转换为数组格式统一处理
                             
                             # 格式化商品列表
                             if goods_list:
                                 product_goods_list = json.dumps(goods_list, ensure_ascii=False, indent=2)
+                                # 提取商品ID列表
+                                for good in goods_list:
+                                    if isinstance(good, dict) and 'id' in good:
+                                        product_ids.append(good['id'])
+                                    elif isinstance(good, str):
+                                        # 如果商品是字符串格式，尝试从商品名称推断ID
+                                        # 这里可以根据实际情况调整逻辑
+                                        product_ids.append(f"unknown_{len(product_ids)}")
                             else:
                                 product_goods_list = "无推荐商品"
                             
@@ -294,12 +322,14 @@ class WellnessWorkflow:
                             recommended_products = json.dumps(product_data, ensure_ascii=False, indent=2)
                             print(f"解析商品推荐JSON: {product_data}")
                             print(f"商品列表: {product_goods_list}")
+                            print(f"商品ID列表: {product_ids}")
                             print(f"推荐原因: {product_recommendation_reason}")
                         except json.JSONDecodeError as e:
                             print(f"JSON解析失败: {e}, 原始数据: {recommended_products}")
                             # 如果解析失败，保持原始字符串
                             product_goods_list = "JSON解析失败"
                             product_recommendation_reason = "JSON解析失败"
+                            product_ids = []
                         
                         product_success = True
                         
@@ -319,8 +349,10 @@ class WellnessWorkflow:
                                     if isinstance(good, dict):
                                         name = good.get('name', '未知商品')
                                         description = good.get('description', '无描述')
-                                        goods_descriptions.append(f"商品名称：{name}\n商品描述：{description}")
-                                goods_info = "\n\n".join(goods_descriptions)
+                                        price = good.get('price', '未知价格')
+                                        # 使用 名称-描述-价格 的简洁格式
+                                        goods_descriptions.append(f"{name}-{description}-{price}")
+                                goods_info = "; ".join(goods_descriptions)  # 多个商品用分号分隔
                             except:
                                 goods_info = product_goods_list
                         
@@ -400,6 +432,7 @@ class WellnessWorkflow:
                         })
                         print(f"📋 记录重写信息: 原始长度={len(original_content)}, 重写后长度={len(content_result.content)}")
                     
+                    
                     self.content_collector.add_content(
                         user_input=user_input,
                         persona_detail=self.persona_detail,
@@ -414,6 +447,7 @@ class WellnessWorkflow:
                         product_recommendation_reason=product_recommendation_reason,
                         product_recommendation_success=product_success,
                         product_recommendation_error=product_error,
+                        product_ids=product_ids,  # 新增：传递商品ID列表
                         processing_stage="completed",
                         final_status="success"
                     )
@@ -430,30 +464,7 @@ class WellnessWorkflow:
                     )
 
 
-            # return WorkflowResult(False, {}, f"测试完成")
-                        
-            # # 步骤6: 商品推荐
-            # product_result = self.product_recommender.process(content_validation.data)
-            # if not product_result.success:
-            #     return WorkflowResult(False, {}, f"商品推荐失败: {product_result.error_message}")
-            
-            # # 步骤7: 商品推荐验收
-            # product_validation = self.product_recommendation_validator.process(product_result.data)
-            # if not product_validation.success:
-            #     return WorkflowResult(False, {}, f"商品推荐验收失败: {product_validation.error_message}")
-            
-            # # 步骤8: 获取商品信息(图片)
-            # product_info = self._get_product_info(product_validation.data)
-            
-            # # 步骤9: 最终文案生成
-            # final_content = self.content_generator.process({
-            #     "content": content_validation.data,
-            #     "products": product_info
-            # })
-            
-            # if not final_content.success:
-            #     return WorkflowResult(False, {}, f"最终文案生成失败: {final_content.error_message}")
-            
+         
             # 整合所有结果
             workflow_data = {
                 "persona": self.persona_detail,
