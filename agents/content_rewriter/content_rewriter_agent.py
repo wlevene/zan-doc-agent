@@ -234,7 +234,7 @@ class ContentRewriterAgent(BaseAgent):
                     final_inputs[key] = value
             
             # 构建查询
-            full_query = self._build_rewrite_query(persona, scenario, text, rewrite_instruction)
+            full_query = self._build_rewrite_query(persona, scenario, text)
             
             # 调用 Dify API
             raw_response = self.client.completion_messages_blocking(
@@ -328,21 +328,18 @@ class ContentRewriterAgent(BaseAgent):
                 raw_response={"error": str(e)}
             )
     
-    def _build_rewrite_query(self, persona: str, scenario: str, text: str, query: str) -> str:
+    def _build_rewrite_query(self, persona: str, scenario: str, text: str) -> str:
         """构建文案重写查询
         
         Args:
             persona: 人设描述
             scenario: 场景描述
-            text: 原始文案
-            query: 重写要求
+            query: 原始文案
             
         Returns:
             str: 完整的查询字符串
         """
         return f"""
-{query}
-
 人设信息：
 {persona}
 
