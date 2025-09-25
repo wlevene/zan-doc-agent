@@ -17,6 +17,8 @@ class ContentItem:
     content_data: Dict[str, Any] = None
     content_validation_data: Dict[str, Any] = None
     content_validation_result: bool = False
+    content_generation_success: bool = False  # 新增：文案生成是否成功
+    content_generation_error: str = ""  # 新增：文案生成错误信息
     recommended_products: List[Dict[str, Any]] = None
     product_goods_list: str = ""
     product_recommendation_reason: str = ""
