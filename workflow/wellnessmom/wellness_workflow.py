@@ -187,13 +187,17 @@ class WellnessWorkflow:
                             content_result = self.content_generator.process(
                                 {
                                     "query": scenario, 
-                                    "suggestion": "无"
+                                    "suggestion": "无",
+                                    "persona": self.persona_detail,
+                                    "text":"无",
                                 })
                         else:
                             # 重试时传递suggestion参数
                             content_result = self.content_generator.process({
                                 "query": scenario,
-                                "suggestion": content_validation_reason
+                                "suggestion": content_validation_reason,
+                                "persona": self.persona_detail,
+                                "text":"无",
                             })
                             print(f"重试文案生成，建议: {content_validation_reason}")
                         

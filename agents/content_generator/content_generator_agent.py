@@ -135,13 +135,10 @@ class ContentGeneratorAgent(BaseAgent):
     
     def __init__(self, 
                  endpoint: str = "http://119.45.130.88:8080/v1",
-                 app_key: str = "app-kPd3U0xka6D475yOdt9YEMrO"):
+                 app_key: str = "app-ypqWLZX41URLzGvLDUVTEGsC"):
         """
         初始化文案生成器
         
-        Args:
-            endpoint: Dify API 端点地址，默认为 "http://119.45.130.88:8080/v1"
-            app_key: Dify 应用密钥，默认为 "app-ixK02FbhtS9QiklR0pXo0eu0"
         """
         # 创建 DifyClient 实例
         dify_client = DifyClient(
