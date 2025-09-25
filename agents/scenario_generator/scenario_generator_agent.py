@@ -178,7 +178,7 @@ class ScenarioGeneratorAgent(BaseAgent):
     
     def __init__(self, 
                  endpoint: str = "http://119.45.130.88:8080/v1",
-                 app_key: str = "app-02E2GIjvzXCUarqAVRUKHBlU"):
+                 app_key: str = "app-7r3AN12NjvAeXOqTckw4AP6u"):
         """
         初始化场景生成器
         

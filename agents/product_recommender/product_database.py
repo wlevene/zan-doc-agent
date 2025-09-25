@@ -18,6 +18,11 @@ class ProductInfo:
     target_audience: str
     stock: int = 100
     rating: float = 4.5
+    core_selling_point: str = ""  # 一句话核心卖点
+    product_selling_points: str = ""  # 产品卖点
+    formula_source: str = ""  # 配方出处
+    usage_method: str = ""  # 使用方法
+    k3_code: str = ""  # K3编码
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
@@ -32,7 +37,12 @@ class ProductInfo:
             "features": self.features,
             "target_audience": self.target_audience,
             "stock": self.stock,
-            "rating": self.rating
+            "rating": self.rating,
+            "core_selling_point": self.core_selling_point,
+            "product_selling_points": self.product_selling_points,
+            "formula_source": self.formula_source,
+            "usage_method": self.usage_method,
+            "k3_code": self.k3_code
         }
 
 class ProductDatabase:
@@ -77,6 +87,13 @@ class ProductDatabase:
             target_audience = self._extract_target_audience(row['商品分组'])
             stock = int(row['库存']) if not pd.isna(row['库存']) else 100
             
+            # 读取新增字段
+            core_selling_point = str(row['一句话核心卖点']) if '一句话核心卖点' in row and not pd.isna(row['一句话核心卖点']) else ""
+            product_selling_points = str(row['产品卖点']) if '产品卖点' in row and not pd.isna(row['产品卖点']) else ""
+            formula_source = str(row['配方出处']) if '配方出处' in row and not pd.isna(row['配方出处']) else ""
+            usage_method = str(row['使用方法']) if '使用方法' in row and not pd.isna(row['使用方法']) else ""
+            k3_code = str(row['K3编码']) if 'K3编码' in row and not pd.isna(row['K3编码']) else ""
+            
             product = ProductInfo(
                 product_id=product_id,
                 name=name,
@@ -87,7 +104,12 @@ class ProductDatabase:
                 image_url=image_url,
                 features=features,
                 target_audience=target_audience,
-                stock=stock
+                stock=stock,
+                core_selling_point=core_selling_point,
+                product_selling_points=product_selling_points,
+                formula_source=formula_source,
+                usage_method=usage_method,
+                k3_code=k3_code
             )
             
             products[product_id] = product
@@ -162,7 +184,12 @@ class ProductDatabase:
                 brand="自然之选",
                 image_url="https://example.com/images/organic_oats.jpg",
                 features=["有机认证", "高纤维", "无添加糖", "易消化"],
-                target_audience="注重健康的家庭"
+                target_audience="注重健康的家庭",
+                core_selling_point="100%有机燕麦，营养健康全家适用",
+                product_selling_points="有机认证、高纤维、无添加糖、易消化、适合全家人",
+                formula_source="澳洲有机农场直供",
+                usage_method="每次30-50g，用热水或牛奶冲泡，可加入水果或坚果",
+                k3_code="K3001"
             ),
             "wellness_002": ProductInfo(
                 product_id="wellness_002",
@@ -173,7 +200,12 @@ class ProductDatabase:
                 brand="力量源",
                 image_url="https://example.com/images/protein_powder.jpg",
                 features=["高蛋白含量", "易吸收", "多种口味", "无人工色素"],
-                target_audience="健身爱好者"
+                target_audience="健身爱好者",
+                core_selling_point="高品质乳清蛋白，快速补充运动营养",
+                product_selling_points="高蛋白含量、易吸收、多种口味、无人工色素、支持肌肉生长",
+                formula_source="新西兰优质乳清蛋白",
+                usage_method="运动后30分钟内，用250ml水或牛奶冲调一勺蛋白粉",
+                k3_code="K3002"
             )
         }
         return products

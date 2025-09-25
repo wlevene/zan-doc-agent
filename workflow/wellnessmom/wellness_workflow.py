@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import json
 import logging
+from datetime import datetime
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
@@ -95,7 +96,11 @@ class WellnessWorkflow:
             #     return WorkflowResult(False, {}, f"单人设处理失败: {persona_result.error_message}")
             
             # 步骤2: 场景生成
-            scenario_result = self.scenario_generator.process({"query":self.persona_detail})
+            scenario_result = self.scenario_generator.process(
+                {"query": self.persona_detail,
+                "date": datetime.now().strftime("%Y-%m-%d")
+                }
+                )
             if not scenario_result.success:
                 return WorkflowResult(False, {}, f"场景生成失败: {scenario_result.error_message}")
 
@@ -112,8 +117,8 @@ class WellnessWorkflow:
             for scenario in scenario_array:
                 index = index + 1
 
-                if index > 1:
-                    break
+                # if index > 1:
+                #     break
                 print(f"\n🔍 开始处理场景: {scenario}")
                 try:
                     # 场景验证
@@ -350,8 +355,18 @@ class WellnessWorkflow:
                                         name = good.get('name', '未知商品')
                                         description = good.get('description', '无描述')
                                         price = good.get('price', '未知价格')
-                                        # 使用 名称-描述-价格 的简洁格式
-                                        goods_descriptions.append(f"{name}-{description}-{price}")
+                                        # 添加新字段：产品卖点和配方出处
+                                        selling_points = good.get('product_selling_points', '').strip()
+                                        formula_source = good.get('formula_source', '').strip()
+                                        
+                                        # 构建完整的商品信息格式：名称-描述-价格-卖点-配方出处
+                                        goods_parts = [name, description, str(price)]
+                                        if selling_points:
+                                            goods_parts.append(f"卖点:{selling_points}")
+                                        if formula_source:
+                                            goods_parts.append(f"配方:{formula_source}")
+                                        
+                                        goods_descriptions.append("-".join(goods_parts))
                                 goods_info = "; ".join(goods_descriptions)  # 多个商品用分号分隔
                             except:
                                 goods_info = product_goods_list
@@ -618,7 +633,6 @@ if __name__ == "__main__":
     
     # 运行完整工作流
     result = workflow.run_complete_workflow("")
-    # result = workflow.run_complete_workflow("我想要一些秋季养生的建议")
     
     if result.success:
         print("工作流执行成功!")
