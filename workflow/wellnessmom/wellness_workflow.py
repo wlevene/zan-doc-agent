@@ -117,8 +117,8 @@ class WellnessWorkflow:
             for scenario in scenario_array:
                 index = index + 1
 
-                # if index > 1:
-                #     break
+                if index > 1:
+                    break
                 print(f"\n🔍 开始处理场景: {scenario}")
                 try:
                     # 场景验证
@@ -183,7 +183,8 @@ class WellnessWorkflow:
                         
                         # 文案生成
                         if retry_count == 0:
-                            # 第一次生成，不传suggestion
+                            # 第一次生成，使用文案生成器
+                            print("使用文案生成器进行首次生成")
                             content_result = self.content_generator.process(
                                 {
                                     "query": scenario, 
@@ -192,14 +193,14 @@ class WellnessWorkflow:
                                     "text":"无",
                                 })
                         else:
-                            # 重试时传递suggestion参数
-                            content_result = self.content_generator.process({
-                                "query": scenario,
-                                "suggestion": content_validation_reason,
+                            # 重试时使用文案重写器，传入原文案和修改建议
+                            print(f"使用文案重写器进行重写，建议: {content_validation_reason}")
+                            content_result = self.content_rewriter.process({
+                                "query": scenario, 
+                                "suggestion": content_validation_reason,     
                                 "persona": self.persona_detail,
-                                "text":"无",
+                                "text": content_result.content, 
                             })
-                            print(f"重试文案生成，建议: {content_validation_reason}")
                         
                         if not content_result.success:
                             # 文案生成失败
