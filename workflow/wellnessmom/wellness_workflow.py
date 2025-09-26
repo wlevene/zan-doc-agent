@@ -195,7 +195,7 @@ class WellnessWorkflow:
                         else:
                             # 重试时使用文案重写器，传入原文案和修改建议
                             print(f"使用文案重写器进行重写，建议: {content_validation_reason}")
-                            content_result = self.content_rewriter.process({
+                            content_result = self.content_generator.process({
                                 "query": scenario, 
                                 "suggestion": content_validation_reason,     
                                 "persona": self.persona_detail,
