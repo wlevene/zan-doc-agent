@@ -22,6 +22,7 @@ class ContentItem:
     product_recommendation_success: bool = False
     product_recommendation_error: str = ""
     k3_code: str = ""  # K3编码
+    product_name: str = ""  # 产品名称
     processing_stage: str = "pending"
     final_status: str = "pending"
     created_at: str = ""
@@ -153,6 +154,7 @@ class ContentCollector:
                     "文案验收原因": self._clean_text_for_excel(item.content_validation_data.get("validation_reason", "") if item.content_validation_data else ""),
                     "重写后文案": self._clean_text_for_excel(item.content_data.get("content", "") if item.content_data else ""),
                     "K3编码": self._clean_text_for_excel(item.k3_code),
+                    # 商品信息将在后面统一添加，保持K3编码和产品名称相邻
                     "商品推荐原因": self._clean_text_for_excel(item.product_recommendation_reason),
                     "商品推荐成功": "是" if item.product_recommendation_success else "否",
                     "商品推荐错误": self._clean_text_for_excel(item.product_recommendation_error),
@@ -167,7 +169,12 @@ class ContentCollector:
                 product_description = ""
                 product_price = ""
                 
-                if item.recommended_products:
+                # 优先使用ContentItem中已解析的product_name字段
+                if item.product_name:
+                    product_name = self._clean_text_for_excel(item.product_name)
+                
+                # 如果product_name为空，则从recommended_products解析
+                if not product_name and item.recommended_products:
                     # 检查 recommended_products 是字符串还是字典
                     if isinstance(item.recommended_products, str):
                         # 如果是字符串，尝试解析为JSON
@@ -177,25 +184,57 @@ class ContentCollector:
                             # 处理单个商品字典格式
                             if isinstance(product_data, dict):
                                 product_id = self._clean_text_for_excel(str(product_data.get('id', '')))
-                                product_name = self._clean_text_for_excel(str(product_data.get('name', '')))
+                                if not product_name:  # 只有在product_name为空时才从这里获取
+                                    product_name = self._clean_text_for_excel(str(product_data.get('name', '')))
                                 product_description = self._clean_text_for_excel(str(product_data.get('description', product_data.get('desc', ''))))
                                 product_price = self._clean_text_for_excel(str(product_data.get('price', '')))
                                         
                         except (json.JSONDecodeError, AttributeError):
                             # 如果解析失败，将整个字符串作为商品名称
-                            product_name = self._clean_text_for_excel(str(item.recommended_products))
+                            if not product_name:
+                                product_name = self._clean_text_for_excel(str(item.recommended_products))
                     elif isinstance(item.recommended_products, dict):
                         # 如果直接是字典格式
                         product_id = self._clean_text_for_excel(str(item.recommended_products.get('id', '')))
-                        product_name = self._clean_text_for_excel(str(item.recommended_products.get('name', '')))
+                        if not product_name:  # 只有在product_name为空时才从这里获取
+                            product_name = self._clean_text_for_excel(str(item.recommended_products.get('name', '')))
                         product_description = self._clean_text_for_excel(str(item.recommended_products.get('description', item.recommended_products.get('desc', ''))))
                         product_price = self._clean_text_for_excel(str(item.recommended_products.get('price', '')))
                 
-                # 将商品信息添加到行数据中
-                # row["商品ID"] = product_id
-                row["商品名称"] = product_name
-                row["商品描述"] = product_description
-                # row["商品价格"] = product_price
+                # 将商品信息插入到K3编码后面，保持相关信息集中
+                # 创建一个新的有序字典，重新排列列顺序
+                ordered_row = {}
+                
+                # 基本信息
+                ordered_row["用户输入"] = row["用户输入"]
+                ordered_row["人设详情"] = row["人设详情"]
+                
+                # 场景相关
+                ordered_row["场景内容"] = row["场景内容"]
+                ordered_row["场景验收结果"] = row["场景验收结果"]
+                ordered_row["场景验收原因"] = row["场景验收原因"]
+                
+                # 文案相关
+                ordered_row["文案内容"] = row["文案内容"]
+                ordered_row["文案验收结果"] = row["文案验收结果"]
+                ordered_row["文案验收原因"] = row["文案验收原因"]
+                ordered_row["重写后文案"] = row["重写后文案"]
+                
+                # 商品相关信息集中放置
+                ordered_row["K3编码"] = row["K3编码"]
+                ordered_row["产品名称"] = product_name
+                ordered_row["商品描述"] = product_description
+                ordered_row["商品推荐原因"] = row["商品推荐原因"]
+                ordered_row["商品推荐成功"] = row["商品推荐成功"]
+                ordered_row["商品推荐错误"] = row["商品推荐错误"]
+                
+                # 状态信息
+                ordered_row["处理阶段"] = row["处理阶段"]
+                ordered_row["最终状态"] = row["最终状态"]
+                ordered_row["创建时间"] = row["创建时间"]
+                
+                # 使用重新排序的行数据
+                row = ordered_row
                 
                 data_rows.append(row)
             

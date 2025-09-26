@@ -117,8 +117,8 @@ class WellnessWorkflow:
             for scenario in scenario_array:
                 index = index + 1
 
-                # if index > 1:
-                #     break
+                if index > 1:
+                    break
                 print(f"\n🔍 开始处理场景: {scenario}")
                 try:
                     # 场景验证
@@ -342,6 +342,7 @@ class WellnessWorkflow:
                         goods_info = ""
                         selling_points = ""
                         formula_source = ""
+                        product_name = ""  # 添加产品名称变量
                         if recommended_products and recommended_products != "无推荐商品" and product_recommendation_reason != "JSON解析失败":
                             try:
                                 goods_data = json.loads(recommended_products)
@@ -349,6 +350,7 @@ class WellnessWorkflow:
                                 if isinstance(goods_data, dict) and 'goods' in goods_data:
                                     goods_obj = goods_data['goods']
                                     name = goods_obj.get('name', '未知商品')
+                                    product_name = name  # 保存产品名称
                                     description = goods_obj.get('description', '无描述')
                                     price = goods_obj.get('price', '未知价格')
                                     # 添加新字段：产品卖点和配方出处
@@ -366,6 +368,7 @@ class WellnessWorkflow:
                                 elif isinstance(goods_data, dict):
                                     # 兼容旧格式：直接从根对象获取
                                     name = goods_data.get('name', '未知商品')
+                                    product_name = name  # 保存产品名称
                                     description = goods_data.get('description', '无描述')
                                     price = goods_data.get('price', '未知价格')
                                     selling_points = goods_data.get('product_selling_points', '').strip()
@@ -475,6 +478,7 @@ class WellnessWorkflow:
                         product_recommendation_success=product_success,
                         product_recommendation_error=product_error,
                         k3_code=k3_code,  # 新增：传递K3编码
+                        product_name=product_name,  # 新增：传递产品名称
                         processing_stage="completed",
                         final_status="success"
                     )
