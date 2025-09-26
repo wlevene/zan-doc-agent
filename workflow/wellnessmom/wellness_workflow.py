@@ -117,8 +117,8 @@ class WellnessWorkflow:
             for scenario in scenario_array:
                 index = index + 1
 
-                # if index > 1:
-                #     break
+                if index > 1:
+                    break
                 print(f"\n🔍 开始处理场景: {scenario}")
                 try:
                     # 场景验证
@@ -343,6 +343,7 @@ class WellnessWorkflow:
                         selling_points = ""
                         formula_source = ""
                         product_name = ""  # 添加产品名称变量
+                        price = ""  # 添加价格变量
                         if recommended_products and recommended_products != "无推荐商品" and product_recommendation_reason != "JSON解析失败":
                             try:
                                 goods_data = json.loads(recommended_products)
@@ -352,17 +353,17 @@ class WellnessWorkflow:
                                     name = goods_obj.get('name', '未知商品')
                                     product_name = name  # 保存产品名称
                                     description = goods_obj.get('description', '无描述')
-                                    price = goods_obj.get('price', '未知价格')
+                                    price = str(goods_obj.get('price', '未知价格'))  # 保存价格信息
                                     # 添加新字段：产品卖点和配方出处
                                     selling_points = goods_obj.get('product_selling_points', '').strip()
                                     formula_source = goods_obj.get('formula_source', '').strip()
                                     
                                     # 构建完整的商品信息格式：名称-描述-价格-卖点-配方出处
-                                    goods_parts = [name, description, str(price)]
-                                    if selling_points:
-                                        goods_parts.append(f"卖点:{selling_points}")
-                                    if formula_source:
-                                        goods_parts.append(f"配方:{formula_source}")
+                                    goods_parts = [name, description, f"价格:{price}元"]
+                                    # if selling_points:
+                                    #     goods_parts.append(f"卖点:{selling_points}")
+                                    # if formula_source:
+                                    #     goods_parts.append(f"配方:{formula_source}")
                                     
                                     goods_info = "-".join(goods_parts)  # 单个商品信息
                                 elif isinstance(goods_data, dict):
@@ -370,11 +371,11 @@ class WellnessWorkflow:
                                     name = goods_data.get('name', '未知商品')
                                     product_name = name  # 保存产品名称
                                     description = goods_data.get('description', '无描述')
-                                    price = goods_data.get('price', '未知价格')
+                                    price = str(goods_data.get('price', '未知价格'))  # 保存价格信息
                                     selling_points = goods_data.get('product_selling_points', '').strip()
                                     formula_source = goods_data.get('formula_source', '').strip()
                                     
-                                    goods_parts = [name, description, str(price)]
+                                    goods_parts = [name, description, f"价格:{price}元"]
                                     if selling_points:
                                         goods_parts.append(f"卖点:{selling_points}")
                                     if formula_source:
@@ -479,6 +480,9 @@ class WellnessWorkflow:
                         product_recommendation_error=product_error,
                         k3_code=k3_code,  # 新增：传递K3编码
                         product_name=product_name,  # 新增：传递产品名称
+                        product_selling_points=selling_points,  # 新增：传递商品卖点
+                        formula_source=formula_source,  # 新增：传递配方出处
+                        product_price=price,  # 新增：传递商品价格
                         processing_stage="completed",
                         final_status="success"
                     )

@@ -23,6 +23,9 @@ class ContentItem:
     product_recommendation_error: str = ""
     k3_code: str = ""  # K3编码
     product_name: str = ""  # 产品名称
+    product_selling_points: str = ""  # 商品卖点
+    formula_source: str = ""  # 配方出处
+    product_price: str = ""  # 商品价格
     processing_stage: str = "pending"
     final_status: str = "pending"
     created_at: str = ""
@@ -223,6 +226,9 @@ class ContentCollector:
                 # 商品相关信息集中放置
                 ordered_row["K3编码"] = row["K3编码"]
                 ordered_row["产品名称"] = product_name
+                ordered_row["商品卖点"] = self._clean_text_for_excel(item.product_selling_points)
+                ordered_row["配方出处"] = self._clean_text_for_excel(item.formula_source)
+                ordered_row["商品价格"] = self._clean_text_for_excel(item.product_price)
                 ordered_row["商品描述"] = product_description
                 ordered_row["商品推荐原因"] = row["商品推荐原因"]
                 ordered_row["商品推荐成功"] = row["商品推荐成功"]
