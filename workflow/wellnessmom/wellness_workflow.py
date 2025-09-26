@@ -117,8 +117,8 @@ class WellnessWorkflow:
             for scenario in scenario_array:
                 index = index + 1
 
-                if index > 1:
-                    break
+                # if index > 1:
+                #     break
                 print(f"\n🔍 开始处理场景: {scenario}")
                 try:
                     # 场景验证
@@ -340,17 +340,20 @@ class WellnessWorkflow:
                         
                         # 准备商品信息用于重写
                         goods_info = ""
+                        selling_points = ""
+                        formula_source = ""
                         if recommended_products and recommended_products != "无推荐商品" and product_recommendation_reason != "JSON解析失败":
                             try:
                                 goods_data = json.loads(recommended_products)
-                                # 处理单个商品（不再是列表）
-                                if isinstance(goods_data, dict):
-                                    name = goods_data.get('name', '未知商品')
-                                    description = goods_data.get('description', '无描述')
-                                    price = goods_data.get('price', '未知价格')
+                                # 处理单个商品，从goods对象中提取信息
+                                if isinstance(goods_data, dict) and 'goods' in goods_data:
+                                    goods_obj = goods_data['goods']
+                                    name = goods_obj.get('name', '未知商品')
+                                    description = goods_obj.get('description', '无描述')
+                                    price = goods_obj.get('price', '未知价格')
                                     # 添加新字段：产品卖点和配方出处
-                                    selling_points = goods_data.get('product_selling_points', '').strip()
-                                    formula_source = goods_data.get('formula_source', '').strip()
+                                    selling_points = goods_obj.get('product_selling_points', '').strip()
+                                    formula_source = goods_obj.get('formula_source', '').strip()
                                     
                                     # 构建完整的商品信息格式：名称-描述-价格-卖点-配方出处
                                     goods_parts = [name, description, str(price)]
@@ -360,7 +363,23 @@ class WellnessWorkflow:
                                         goods_parts.append(f"配方:{formula_source}")
                                     
                                     goods_info = "-".join(goods_parts)  # 单个商品信息
-                            except:
+                                elif isinstance(goods_data, dict):
+                                    # 兼容旧格式：直接从根对象获取
+                                    name = goods_data.get('name', '未知商品')
+                                    description = goods_data.get('description', '无描述')
+                                    price = goods_data.get('price', '未知价格')
+                                    selling_points = goods_data.get('product_selling_points', '').strip()
+                                    formula_source = goods_data.get('formula_source', '').strip()
+                                    
+                                    goods_parts = [name, description, str(price)]
+                                    if selling_points:
+                                        goods_parts.append(f"卖点:{selling_points}")
+                                    if formula_source:
+                                        goods_parts.append(f"配方:{formula_source}")
+                                    
+                                    goods_info = "-".join(goods_parts)
+                            except Exception as e:
+                                print(f"商品信息解析异常: {e}")
                                 goods_info = recommended_products
                         
                         # 使用文案重写大师重写文案
@@ -373,7 +392,9 @@ class WellnessWorkflow:
                             "persona": self.persona_detail,
                             "scenario": scenario,
                             "query": original_content,
-                            "goods": goods_info if goods_info else None
+                            "goods": goods_info if goods_info else None,
+                            "formula_source": formula_source,
+                            "product_selling_points": selling_points,
                         })
                         
                         if rewrite_result.success:
