@@ -53,46 +53,55 @@ class ProductDatabase:
     
     def _initialize_mock_data(self) -> Dict[str, ProductInfo]:
         """从Excel文件读取商品数据"""
-        try:
-            return self._load_from_excel()
-        except Exception as e:
-            print(f"从Excel读取数据失败: {e}，使用默认数据")
-            return self._get_fallback_data()
+        return self._load_from_excel()
     
     def _load_from_excel(self) -> Dict[str, ProductInfo]:
-        """从goods.xlsx读取商品数据"""
+        """从正安产品资料库.xlsx读取商品数据"""
         # 获取当前文件所在目录
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        excel_path = os.path.join(current_dir, 'goods.xlsx')
+        excel_path = os.path.join(current_dir, '正安产品资料库.xlsx')
         
-        # 读取Excel文件
-        df = pd.read_excel(excel_path, sheet_name='sheet1')
+        # 读取Excel文件，跳过第一行标题，使用第二行作为列名
+        df = pd.read_excel(excel_path, sheet_name='正安国货铺', header=1)
         
         products = {}
         
         for index, row in df.iterrows():
             # 跳过无效行
-            if pd.isna(row['商品id']) or pd.isna(row['商品名称']):
+            if pd.isna(row['品项']) or pd.isna(row['K3编码']):
                 continue
                 
             # 字段映射和数据处理
-            product_id = str(int(row['商品id'])) if not pd.isna(row['商品id']) else f"product_{index}"
-            name = str(row['商品名称']) if not pd.isna(row['商品名称']) else "未知商品"
-            description = str(row['分享描述']) if not pd.isna(row['分享描述']) else str(row['商品卖点']) if not pd.isna(row['商品卖点']) else "暂无描述"
-            price = float(row['价格（元）']) if not pd.isna(row['价格（元）']) else 0.0
-            category = self._extract_category(row['商品分组']) if not pd.isna(row['商品分组']) else "其他"
-            brand = "正安" if "正安" in name else "未知品牌"
-            image_url = str(row['商品链接']) if not pd.isna(row['商品链接']) else ""
-            features = self._extract_features(row['商品分组'], row['商品卖点'])
-            target_audience = self._extract_target_audience(row['商品分组'])
-            stock = int(row['库存']) if not pd.isna(row['库存']) else 100
+            k3_code = str(row['K3编码']) if not pd.isna(row['K3编码']) else f"product_{index}"
+            product_id = k3_code  # 使用K3编码作为product_id
+            name = str(row['品项']) if not pd.isna(row['品项']) else "未知商品"
+            description = str(row['产品卖点']) if not pd.isna(row['产品卖点']) else "暂无描述"
+            
+            # 解析价格 - 处理可能包含换行符的价格数据
+            price_raw = row['零售价']
+            if pd.isna(price_raw):
+                price = 0.0
+            else:
+                price_str = str(price_raw).strip()
+                # 如果包含换行符，取第一个数字
+                if '\n' in price_str:
+                    price_str = price_str.split('\n')[0].strip()
+                try:
+                    price = float(price_str)
+                except (ValueError, TypeError):
+                    price = 0.0
+            category = self._extract_category(row['一级分类'], row['二级分类']) if not pd.isna(row['一级分类']) else "其他"
+            brand = str(row['品牌']) if not pd.isna(row['品牌']) else "正安"
+            image_url = ""  # Excel中没有图片链接字段
+            features = self._extract_features(row['一级分类'], row['产品卖点'])
+            target_audience = self._extract_target_audience(row['一级分类'])
+            stock = 100  # 默认库存
             
             # 读取新增字段
-            core_selling_point = str(row['一句话核心卖点']) if '一句话核心卖点' in row and not pd.isna(row['一句话核心卖点']) else ""
-            product_selling_points = str(row['产品卖点']) if '产品卖点' in row and not pd.isna(row['产品卖点']) else ""
-            formula_source = str(row['配方出处']) if '配方出处' in row and not pd.isna(row['配方出处']) else ""
-            usage_method = str(row['使用方法']) if '使用方法' in row and not pd.isna(row['使用方法']) else ""
-            k3_code = str(row['K3编码']) if 'K3编码' in row and not pd.isna(row['K3编码']) else ""
+            core_selling_point = str(row['一句话核心卖点']) if not pd.isna(row['一句话核心卖点']) else ""
+            product_selling_points = str(row['产品卖点']) if not pd.isna(row['产品卖点']) else ""
+            formula_source = str(row['古方出处']) if not pd.isna(row['古方出处']) else ""
+            usage_method = str(row['使用方法']) if not pd.isna(row['使用方法']) else ""
             
             product = ProductInfo(
                 product_id=product_id,
@@ -116,34 +125,39 @@ class ProductDatabase:
             
         return products
     
-    def _extract_category(self, group_info: str) -> str:
-        """从商品分组信息中提取分类"""
-        if pd.isna(group_info):
+    def _extract_category(self, primary_category, secondary_category) -> str:
+        """从一级分类和二级分类信息中提取分类"""
+        if pd.isna(primary_category):
             return "其他"
             
-        group_str = str(group_info)
-        if "草本洗护" in group_str:
-            return "洗护用品"
-        elif "道地风物" in group_str:
-            return "保健品"
-        elif "家居生活" in group_str:
-            return "家居用品"
-        else:
+        primary_str = str(primary_category)
+        secondary_str = str(secondary_category) if not pd.isna(secondary_category) else ""
+        
+        if "用品" in primary_str:
+            if "艾制品" in secondary_str:
+                return "艾制品"
+            elif "洗护" in secondary_str:
+                return "洗护用品"
+            else:
+                return "生活用品"
+        elif "食品" in primary_str:
             return "健康食品"
+        elif "保健" in primary_str:
+            return "保健品"
+        else:
+            return primary_str
     
-    def _extract_features(self, group_info, selling_point) -> List[str]:
+    def _extract_features(self, primary_category, selling_point) -> List[str]:
         """从商品信息中提取特性"""
         features = []
         
-        # 从商品分组提取特性
-        if not pd.isna(group_info):
-            group_str = str(group_info)
-            if "草本" in group_str:
-                features.append("天然草本")
-            if "道地" in group_str:
-                features.append("道地原材")
-            if "家庭养护" in group_str:
-                features.append("家庭适用")
+        # 从一级分类提取特性
+        if not pd.isna(primary_category):
+            category_str = str(primary_category)
+            if "用品" in category_str:
+                features.append("生活用品")
+            if "食品" in category_str:
+                features.append("健康食品")
         
         # 从商品卖点提取特性
         if not pd.isna(selling_point):
@@ -154,65 +168,36 @@ class ProductDatabase:
                 features.append("天然成分")
             if "精选" in selling_str:
                 features.append("精选原料")
+            if "艾" in selling_str:
+                features.append("艾草制品")
         
         return features if features else ["优质产品"]
     
-    def _extract_target_audience(self, group_info) -> str:
-        """从商品分组信息中提取目标用户群体"""
-        if pd.isna(group_info):
+    def _extract_target_audience(self, primary_category) -> str:
+        """从一级分类信息中提取目标用户群体"""
+        if pd.isna(primary_category):
             return "一般用户"
             
-        group_str = str(group_info)
-        if "家庭养护" in group_str:
+        category_str = str(primary_category)
+        if "用品" in category_str:
             return "注重健康的家庭"
-        elif "湿热体质" in group_str:
-            return "湿热体质人群"
-        elif "阴虚体质" in group_str:
-            return "阴虚体质人群"
+        elif "食品" in category_str:
+            return "健康饮食人群"
         else:
             return "养生爱好者"
     
-    def _get_fallback_data(self) -> Dict[str, ProductInfo]:
-        """获取备用数据（原硬编码数据）"""
-        products = {
-            "wellness_001": ProductInfo(
-                product_id="wellness_001",
-                name="有机燕麦片",
-                description="100%有机燕麦，富含膳食纤维，适合全家人的健康早餐选择",
-                price=39.9,
-                category="健康食品",
-                brand="自然之选",
-                image_url="https://example.com/images/organic_oats.jpg",
-                features=["有机认证", "高纤维", "无添加糖", "易消化"],
-                target_audience="注重健康的家庭",
-                core_selling_point="100%有机燕麦，营养健康全家适用",
-                product_selling_points="有机认证、高纤维、无添加糖、易消化、适合全家人",
-                formula_source="澳洲有机农场直供",
-                usage_method="每次30-50g，用热水或牛奶冲泡，可加入水果或坚果",
-                k3_code="K3001"
-            ),
-            "wellness_002": ProductInfo(
-                product_id="wellness_002",
-                name="蛋白质粉",
-                description="高品质乳清蛋白，支持肌肉生长和恢复，适合运动人群",
-                price=199.0,
-                category="运动营养",
-                brand="力量源",
-                image_url="https://example.com/images/protein_powder.jpg",
-                features=["高蛋白含量", "易吸收", "多种口味", "无人工色素"],
-                target_audience="健身爱好者",
-                core_selling_point="高品质乳清蛋白，快速补充运动营养",
-                product_selling_points="高蛋白含量、易吸收、多种口味、无人工色素、支持肌肉生长",
-                formula_source="新西兰优质乳清蛋白",
-                usage_method="运动后30分钟内，用250ml水或牛奶冲调一勺蛋白粉",
-                k3_code="K3002"
-            )
-        }
-        return products
+
     
     def get_product_by_id(self, product_id: str) -> Optional[ProductInfo]:
         """根据商品ID获取商品信息"""
         return self._products.get(product_id)
+    
+    def get_product_by_k3_code(self, k3_code: str) -> Optional[ProductInfo]:
+        """根据K3编码获取商品信息"""
+        for product in self._products.values():
+            if product.k3_code == k3_code:
+                return product
+        return None
     
     def get_products_by_category(self, category: str) -> List[ProductInfo]:
         """根据分类获取商品列表"""

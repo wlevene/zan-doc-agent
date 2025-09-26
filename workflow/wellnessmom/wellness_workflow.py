@@ -117,8 +117,8 @@ class WellnessWorkflow:
             for scenario in scenario_array:
                 index = index + 1
 
-                # if index > 1:
-                #     break
+                if index > 1:
+                    break
                 print(f"\n🔍 开始处理场景: {scenario}")
                 try:
                     # 场景验证
@@ -217,7 +217,7 @@ class WellnessWorkflow:
                                     content_validation_result=False,
                                     content_generation_success=False,
                                     content_generation_error=content_result.error_message,
-                                    product_ids=[],  # 新增：空的商品ID列表
+                                    k3_code="",  # 空的K3编码
                                     processing_stage="content_generation",
                                     final_status="content_failed"
                                 )
@@ -245,7 +245,7 @@ class WellnessWorkflow:
                                     content_data={"content": content_result.content},
                                     content_validation_data={"validation_reason": f"验证API调用失败: {content_validation.error_message}"},
                                     content_validation_result=False,
-                                    product_ids=[],  # 新增：空的商品ID列表
+                                    k3_code="",  # 空的K3编码
                                     processing_stage="content_validation",
                                     final_status="validation_failed"
                                 )
@@ -274,22 +274,22 @@ class WellnessWorkflow:
                                     content_data={"content": content_result.content},
                                     content_validation_data={"validation_reason": content_validation_reason},
                                     content_validation_result=False,
-                                    product_ids=[],  # 新增：空的商品ID列表
+                                    k3_code="",  # 空的K3编码
                                     processing_stage="content_validation",
                                     final_status="validation_failed"
                                 )
                     
                     # 商品推荐
                     product_result = self.product_recommender.process({
-                        "query": content_result.content
+                        "query": content_result.content,
+                        # "goods_list":"", # 内部处理了
                     })
                     recommended_products = ""
                     product_success = False
                     product_error = ""
                     # 初始化商品相关变量，确保在所有情况下都有定义
-                    product_goods_list = ""
                     product_recommendation_reason = ""
-                    product_ids = []
+                    k3_code = ""
                     
                     if product_result.success:
                         print(f"\n商品推荐成功: {product_result.content}")
@@ -302,44 +302,33 @@ class WellnessWorkflow:
                             reason = product_data.get('reason', '')
                             
                             # 支持两种数据结构：goods_list（数组）或 goods（单个对象）
-                            goods_list = []
-                            if 'goods_list' in product_data:
-                                # 旧格式：goods_list 数组
-                                goods_list = product_data.get('goods_list', [])
-                            elif 'goods' in product_data:
+                            # 由于现在只推荐单个商品，优先处理 goods 单个对象格式
+                            if 'goods' in product_data:
                                 # 新格式：goods 单个对象
                                 goods_obj = product_data.get('goods')
-                                if goods_obj:
-                                    goods_list = [goods_obj]  # 转换为数组格式统一处理
-                            
-                            # 格式化商品列表
-                            if goods_list:
-                                product_goods_list = json.dumps(goods_list, ensure_ascii=False, indent=2)
-                                # 提取商品ID列表
-                                for good in goods_list:
-                                    if isinstance(good, dict) and 'id' in good:
-                                        product_ids.append(good['id'])
-                                    elif isinstance(good, str):
-                                        # 如果商品是字符串格式，尝试从商品名称推断ID
-                                        # 这里可以根据实际情况调整逻辑
-                                        product_ids.append(f"unknown_{len(product_ids)}")
-                            else:
-                                product_goods_list = "无推荐商品"
+                                if goods_obj and isinstance(goods_obj, dict):
+                                    # 提取K3编码
+                                    k3_code = goods_obj.get('k3_code', '')
+                            elif 'goods_list' in product_data:
+                                # 旧格式：goods_list 数组，取第一个商品
+                                goods_list = product_data.get('goods_list', [])
+                                if goods_list and len(goods_list) > 0:
+                                    first_good = goods_list[0]
+                                    if isinstance(first_good, dict):
+                                        k3_code = first_good.get('k3_code', '')
                             
                             product_recommendation_reason = reason
                             
                             # 将解析后的JSON数据格式化存储
                             recommended_products = json.dumps(product_data, ensure_ascii=False, indent=2)
                             print(f"解析商品推荐JSON: {product_data}")
-                            print(f"商品列表: {product_goods_list}")
-                            print(f"商品ID列表: {product_ids}")
+                            print(f"K3编码: {k3_code}")
                             print(f"推荐原因: {product_recommendation_reason}")
                         except json.JSONDecodeError as e:
                             print(f"JSON解析失败: {e}, 原始数据: {recommended_products}")
                             # 如果解析失败，保持原始字符串
-                            product_goods_list = "JSON解析失败"
                             product_recommendation_reason = "JSON解析失败"
-                            product_ids = []
+                            k3_code = ""
                         
                         product_success = True
                         
@@ -351,30 +340,28 @@ class WellnessWorkflow:
                         
                         # 准备商品信息用于重写
                         goods_info = ""
-                        if product_goods_list and product_goods_list != "无推荐商品" and product_goods_list != "JSON解析失败":
+                        if recommended_products and recommended_products != "无推荐商品" and product_recommendation_reason != "JSON解析失败":
                             try:
-                                goods_data = json.loads(product_goods_list)
-                                goods_descriptions = []
-                                for good in goods_data:
-                                    if isinstance(good, dict):
-                                        name = good.get('name', '未知商品')
-                                        description = good.get('description', '无描述')
-                                        price = good.get('price', '未知价格')
-                                        # 添加新字段：产品卖点和配方出处
-                                        selling_points = good.get('product_selling_points', '').strip()
-                                        formula_source = good.get('formula_source', '').strip()
-                                        
-                                        # 构建完整的商品信息格式：名称-描述-价格-卖点-配方出处
-                                        goods_parts = [name, description, str(price)]
-                                        if selling_points:
-                                            goods_parts.append(f"卖点:{selling_points}")
-                                        if formula_source:
-                                            goods_parts.append(f"配方:{formula_source}")
-                                        
-                                        goods_descriptions.append("-".join(goods_parts))
-                                goods_info = "; ".join(goods_descriptions)  # 多个商品用分号分隔
+                                goods_data = json.loads(recommended_products)
+                                # 处理单个商品（不再是列表）
+                                if isinstance(goods_data, dict):
+                                    name = goods_data.get('name', '未知商品')
+                                    description = goods_data.get('description', '无描述')
+                                    price = goods_data.get('price', '未知价格')
+                                    # 添加新字段：产品卖点和配方出处
+                                    selling_points = goods_data.get('product_selling_points', '').strip()
+                                    formula_source = goods_data.get('formula_source', '').strip()
+                                    
+                                    # 构建完整的商品信息格式：名称-描述-价格-卖点-配方出处
+                                    goods_parts = [name, description, str(price)]
+                                    if selling_points:
+                                        goods_parts.append(f"卖点:{selling_points}")
+                                    if formula_source:
+                                        goods_parts.append(f"配方:{formula_source}")
+                                    
+                                    goods_info = "-".join(goods_parts)  # 单个商品信息
                             except:
-                                goods_info = product_goods_list
+                                goods_info = recommended_products
                         
                         # 使用文案重写大师重写文案
                         print(f"📝 准备重写文案: {original_content}")
@@ -463,11 +450,10 @@ class WellnessWorkflow:
                         content_validation_data={"validation_reason": content_validation_reason},
                         content_validation_result=True,
                         recommended_products=recommended_products,
-                        product_goods_list=product_goods_list,
                         product_recommendation_reason=product_recommendation_reason,
                         product_recommendation_success=product_success,
                         product_recommendation_error=product_error,
-                        product_ids=product_ids,  # 新增：传递商品ID列表
+                        k3_code=k3_code,  # 新增：传递K3编码
                         processing_stage="completed",
                         final_status="success"
                     )
@@ -540,27 +526,28 @@ class WellnessWorkflow:
         self.content_collector.clear()
         logger.info("已清空收集的文案数据")
     
-    def _get_product_info(self, product_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """获取商品信息包括图片"""
+    def _get_product_info(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """获取单个商品信息包括图片"""
         try:
-            product_ids = product_data.get('product_ids', [])
-            products = []
+            k3_code = product_data.get('k3_code', '')
+            if not k3_code:
+                return {}
             
-            for product_id in product_ids:
-                product = self.product_db.get_product_by_id(product_id)
-                if product:
-                    product_dict = product.to_dict()
-                    # 获取图片信息
-                    image_info = self.product_db.get_product_image(product_id)
-                    if image_info:
-                        product_dict['image'] = image_info
-                    products.append(product_dict)
+            # 通过k3_code获取商品信息
+            product = self.product_db.get_product_by_k3_code(k3_code)
+            if product:
+                product_dict = product.to_dict()
+                # 获取图片信息
+                image_info = self.product_db.get_product_image(product.id)
+                if image_info:
+                    product_dict['image'] = image_info
+                return product_dict
             
-            return products
+            return {}
             
         except Exception as e:
             logger.error(f"获取商品信息失败: {str(e)}")
-            return []
+            return {}
     
     def run_scenario_generation(self, user_input: str) -> WorkflowResult:
         """运行场景生成流程"""

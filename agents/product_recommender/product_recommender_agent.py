@@ -198,12 +198,43 @@ class ProductRecommenderAgent(BaseAgent):
             if not goods_list:  # 如果goods_list为空或None，自动补齐
                 goods_list = self._get_goods_list_json()
                 final_inputs["goods_list"] = goods_list
+
+                # 打印final_inputs的数量和内容（在所有参数添加完成后）
+                print(f"📊 goods_list 信息:")
+                # goods_list是JSON字符串，需要解析后计算商品数量
+                import json
+                try:
+                    goods_data = json.loads(goods_list)
+                    goods_count = len(goods_data) if isinstance(goods_data, list) else 0
+                    print(f"  goods_list商品数量: {goods_count}")
+                    print(f"  goods_list字符串长度: {len(goods_list)}")
+                except Exception as e:
+                    print(f"  goods_list解析失败: {e}")
+                    print(f"  goods_list字符串长度: {len(goods_list)}")
             
             # 将所有其他参数添加到inputs中（除了特殊参数）
             special_params = {'query', 'inputs', 'user'}
             for key, value in params.items():
                 if key not in special_params and value is not None:
                     final_inputs[key] = value
+            
+            
+            # 打印每个参数的详细信息
+            for key, value in final_inputs.items():
+                if key == "goods_list":
+                    # goods_list是JSON字符串，计算商品数量
+                    import json
+                    try:
+                        goods_data = json.loads(value) if isinstance(value, str) else value
+                        goods_count = len(goods_data) if isinstance(goods_data, list) else 0
+                        print(f"  {key}: JSON字符串，包含 {goods_count} 个商品")
+                    except:
+                        print(f"  {key}: {type(value).__name__}，长度: {len(str(value))}")
+                else:
+                    # 其他参数显示类型和内容预览
+                    value_str = str(value)
+                    preview = value_str[:100] + "..." if len(value_str) > 100 else value_str
+                    print(f"  {key}: {type(value).__name__} = {preview}")
             
             # 构建查询
             full_query = self._build_recommendation_query(query, user_profile, scenario, budget, category)
@@ -335,17 +366,30 @@ class ProductRecommenderAgent(BaseAgent):
             # 转换为简化的商品列表格式
             goods_list = []
             for product in all_products:
+                # 验证价格是否为有效数字且大于0
+                try:
+                    price_value = float(product.price)
+                    if price_value <= 0:
+                        continue  # 跳过价格为0或负数的商品
+                except (ValueError, TypeError):
+                    continue  # 跳过价格不是数字的商品
+                
+                # 只有当product_selling_points不为空时才将商品加入列表
+                if not (product.product_selling_points and product.product_selling_points.strip()):
+                    continue  # 跳过product_selling_points为空的商品
+                
                 goods_item = {
-                    "id": product.product_id,
+                    "k3_code": product.k3_code,
                     "name": product.name,
-                    "description": product.description,
+                    # "description": product.description,
                     "price": product.price,
-                    "category": product.category,
-                    "brand": product.brand,
-                    "features": product.features,
-                    "target_audience": product.target_audience,
-                    "rating": product.rating
+                    # "brand": product.brand,
+                    # "target_audience": product.target_audience,
+                    "formula_source" : product.formula_source,
+                    "product_selling_points": product.core_selling_point,
+                    # "product_selling_points": product.product_selling_points,
                 }
+                
                 goods_list.append(goods_item)
             
             # 转换为JSON字符串

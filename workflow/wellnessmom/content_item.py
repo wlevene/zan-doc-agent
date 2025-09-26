@@ -17,14 +17,11 @@ class ContentItem:
     content_data: Dict[str, Any] = None
     content_validation_data: Dict[str, Any] = None
     content_validation_result: bool = False
-    content_generation_success: bool = False  # 新增：文案生成是否成功
-    content_generation_error: str = ""  # 新增：文案生成错误信息
     recommended_products: List[Dict[str, Any]] = None
-    product_goods_list: str = ""
     product_recommendation_reason: str = ""
     product_recommendation_success: bool = False
     product_recommendation_error: str = ""
-    product_ids: List[str] = None  # 新增：存储推荐商品的ID列表
+    k3_code: str = ""  # K3编码
     processing_stage: str = "pending"
     final_status: str = "pending"
     created_at: str = ""
@@ -40,8 +37,6 @@ class ContentItem:
             self.content_validation_data = {}
         if self.recommended_products is None:
             self.recommended_products = []
-        if self.product_ids is None:
-            self.product_ids = []
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
@@ -157,8 +152,7 @@ class ContentCollector:
                     "文案验收结果": "通过" if item.content_validation_result else "未通过",
                     "文案验收原因": self._clean_text_for_excel(item.content_validation_data.get("validation_reason", "") if item.content_validation_data else ""),
                     "重写后文案": self._clean_text_for_excel(item.content_data.get("content", "") if item.content_data else ""),
-                    "推荐商品数量": len(item.recommended_products) if item.recommended_products else 0,
-                    "商品ID列表": self._clean_text_for_excel(", ".join(item.product_ids) if item.product_ids else ""),
+                    "K3编码": self._clean_text_for_excel(item.k3_code),
                     "商品推荐原因": self._clean_text_for_excel(item.product_recommendation_reason),
                     "商品推荐成功": "是" if item.product_recommendation_success else "否",
                     "商品推荐错误": self._clean_text_for_excel(item.product_recommendation_error),
@@ -167,82 +161,41 @@ class ContentCollector:
                     "创建时间": self._clean_text_for_excel(item.created_at)
                 }
                 
-                # 解析推荐商品信息并拆分为独立列
-                product_ids = []
-                product_names = []
-                product_descriptions = []
-                product_prices = []
+                # 解析推荐商品信息（单商品模式）
+                product_id = ""
+                product_name = ""
+                product_description = ""
+                product_price = ""
                 
                 if item.recommended_products:
-                    # 检查 recommended_products 是字符串还是列表
+                    # 检查 recommended_products 是字符串还是字典
                     if isinstance(item.recommended_products, str):
                         # 如果是字符串，尝试解析为JSON
                         try:
                             product_data = json.loads(item.recommended_products)
                             
-                            # 支持多种数据结构
-                            if isinstance(product_data, list):
-                                # 直接是商品列表格式 [{"id": "xxx", "name": "xxx", ...}, ...]
-                                for product in product_data:
-                                    if isinstance(product, dict):
-                                        product_ids.append(self._clean_text_for_excel(str(product.get('id', ''))))
-                                        product_names.append(self._clean_text_for_excel(str(product.get('name', ''))))
-                                        product_descriptions.append(self._clean_text_for_excel(str(product.get('description', product.get('desc', '')))))
-                                        product_prices.append(self._clean_text_for_excel(str(product.get('price', ''))))
-                                    else:
-                                        product_ids.append('')
-                                        product_names.append(self._clean_text_for_excel(str(product)))
-                                        product_descriptions.append('')
-                                        product_prices.append('')
-                            elif isinstance(product_data, dict):
-                                # 字典格式，检查是否包含商品列表或单个商品
-                                if 'goods_list' in product_data:
-                                    # 商品列表格式 {"goods_list": [...]}
-                                    goods_list = product_data.get('goods_list', [])
-                                    for product_name in goods_list:
-                                        product_ids.append('')
-                                        product_names.append(self._clean_text_for_excel(str(product_name)))
-                                        product_descriptions.append('')
-                                        product_prices.append('')
-                                elif 'goods' in product_data:
-                                    # 单个商品格式 {"goods": {...}}
-                                    goods = product_data.get('goods', {})
-                                    if isinstance(goods, dict):
-                                        product_ids.append(self._clean_text_for_excel(str(goods.get('id', ''))))
-                                        product_names.append(self._clean_text_for_excel(str(goods.get('name', ''))))
-                                        product_descriptions.append(self._clean_text_for_excel(str(goods.get('description', goods.get('desc', '')))))
-                                        product_prices.append(self._clean_text_for_excel(str(goods.get('price', ''))))
-                                    else:
-                                        product_ids.append('')
-                                        product_names.append(self._clean_text_for_excel(str(goods)))
-                                        product_descriptions.append('')
-                                        product_prices.append('')
+                            # 处理单个商品字典格式
+                            if isinstance(product_data, dict):
+                                product_id = self._clean_text_for_excel(str(product_data.get('id', '')))
+                                product_name = self._clean_text_for_excel(str(product_data.get('name', '')))
+                                product_description = self._clean_text_for_excel(str(product_data.get('description', product_data.get('desc', ''))))
+                                product_price = self._clean_text_for_excel(str(product_data.get('price', '')))
                                         
                         except (json.JSONDecodeError, AttributeError):
                             # 如果解析失败，将整个字符串作为商品名称
-                            product_ids.append('')
-                            product_names.append(self._clean_text_for_excel(str(item.recommended_products)))
-                            product_descriptions.append('')
-                            product_prices.append('')
-                    elif isinstance(item.recommended_products, list):
-                        # 如果是列表，按原来的方式处理
-                        for product in item.recommended_products:
-                            if isinstance(product, dict):
-                                product_ids.append(self._clean_text_for_excel(str(product.get('id', ''))))
-                                product_names.append(self._clean_text_for_excel(str(product.get('name', ''))))
-                                product_descriptions.append(self._clean_text_for_excel(str(product.get('description', product.get('desc', '')))))
-                                product_prices.append(self._clean_text_for_excel(str(product.get('price', ''))))
-                            else:
-                                product_ids.append('')
-                                product_names.append(self._clean_text_for_excel(str(product)))
-                                product_descriptions.append('')
-                                product_prices.append('')
+                            product_name = self._clean_text_for_excel(str(item.recommended_products))
+                    elif isinstance(item.recommended_products, dict):
+                        # 如果直接是字典格式
+                        product_id = self._clean_text_for_excel(str(item.recommended_products.get('id', '')))
+                        product_name = self._clean_text_for_excel(str(item.recommended_products.get('name', '')))
+                        product_description = self._clean_text_for_excel(str(item.recommended_products.get('description', item.recommended_products.get('desc', ''))))
+                        product_price = self._clean_text_for_excel(str(item.recommended_products.get('price', '')))
                 
-                # 将商品信息添加到行数据中（用分号分隔多个商品）
-                row["商品ID"] = "; ".join(product_ids) if product_ids else ""
-                row["商品名称"] = "; ".join(product_names) if product_names else ""
-                row["商品描述"] = "; ".join(product_descriptions) if product_descriptions else ""
-                row["商品价格"] = "; ".join(product_prices) if product_prices else ""
+                # 将商品信息添加到行数据中
+                # row["商品ID"] = product_id
+                row["商品名称"] = product_name
+                row["商品描述"] = product_description
+                # row["商品价格"] = product_price
                 
                 data_rows.append(row)
             
