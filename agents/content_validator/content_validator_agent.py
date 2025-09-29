@@ -137,7 +137,7 @@ class ContentValidatorAgent(BaseAgent):
         初始化文案验收器
         """
         endpoint = "http://119.45.130.88:8080/v1"
-        app_key = "app-lQrRQJX9maKmT0sU9G19jz9l"
+        app_key = "app-GtuTwwWLoOau4vwqYobvoV99"
         
         # 创建 DifyClient 实例
         dify_client = DifyClient(
