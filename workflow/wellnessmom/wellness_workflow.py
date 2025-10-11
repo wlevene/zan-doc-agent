@@ -54,7 +54,6 @@ class WorkflowResult:
 
 
 class WellnessWorkflow:
-    """养生妈妈工作流程"""
     
     def __init__(self, config: AgentConfig, persona_detail: str, product_k3_code: str):
         """初始化工作流"""
@@ -96,8 +95,7 @@ class WellnessWorkflow:
             
             # 步骤2: 场景生成
             scenario_result = self.scenario_generator.process(
-                {"query": self.persona_detail,
-                "date": datetime.now().strftime("%Y-%m-%d")
+                {"query": self.persona_detail
                 }
                 )
             if not scenario_result.success:

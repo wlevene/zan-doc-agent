@@ -231,9 +231,8 @@ class ScenarioGeneratorAgent(BaseAgent):
             
             # 准备输入参数
             final_inputs = self._prepare_inputs(inputs)
-            print(f"final_inputs 1: {final_inputs}")
             final_inputs["date"] = datetime.now().strftime("%Y-%m-%d")
-            print(f"final_inputs 2: {final_inputs}")
+          
             # 根据 K3 编码查询商品信息并加入到 inputs 中
             if getattr(self, "product_k3_code", None):
                 k3_code = str(self.product_k3_code).strip()
@@ -250,7 +249,7 @@ class ScenarioGeneratorAgent(BaseAgent):
             
             # 构建查询
             full_query = self._build_scenario_query(query, scenario_type, target_audience)
-            print(f"full_query: {full_query}")
+          
             
             print(f"final_inputs 22: {final_inputs}")
             # 调用 Dify API

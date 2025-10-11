@@ -55,6 +55,7 @@ class WellnessWorkflow:
         self.config = config
         self.product_db = ProductDatabase()
         self.persona_detail = persona_detail
+        self.product_k3_code = product_k3_code
         
         # 定义API配置
         api_key = "app-default-key"  # 默认API密钥
@@ -64,6 +65,7 @@ class WellnessWorkflow:
         # 初始化所有agent
         self.wellness_mom = WellnessMomAgent(api_key, base_url, app_id)
         self.scenario_generator = ScenarioGeneratorAgent()
+        self.scenario_generator.set_k3code(self.product_k3_code)
         self.scenario_validator = ScenarioValidatorAgent()
         self.content_generator = ContentGeneratorAgent()
         self.content_validator = ContentValidatorAgent()
@@ -108,8 +110,8 @@ class WellnessWorkflow:
             for scenario in scenario_array:
                 index = index + 1
 
-                # if index > 1:
-                #     break
+                if index > 1:
+                    break
                 print(f"\n🔍 开始处理场景: {scenario}")
                 try:
                     # 场景验证
@@ -270,11 +272,31 @@ class WellnessWorkflow:
                                     final_status="validation_failed"
                                 )
                     
-                    # 商品推荐
-                    product_result = self.product_recommender.process({
-                        "query": content_result.content,
-                        # "goods_list":"", # 内部处理了
-                    })
+                    if self.product_k3_code:
+                        # 直接使用指定的K3编码获取商品信息
+                        product_info = self.product_db.get_product_by_k3_code(self.product_k3_code)
+                        if product_info:
+                            # 构造与推荐器相同格式的响应
+                            product_data = {"goods": product_info.to_dict()}
+                            product_result = type('AgentResponse', (), {
+                                'success': True,
+                                'content': json.dumps(product_data, ensure_ascii=False, indent=2),
+                                'error': None
+                            })()
+                        else:
+                            # 如果找不到商品，创建失败响应
+                            product_result = type('AgentResponse', (), {
+                                'success': False,
+                                'content': "",
+                                'error': f"未找到K3编码为 {self.product_k3_code} 的商品"
+                            })()
+                    else:
+                        # 使用推荐器获取商品
+                        product_result = self.product_recommender.process({
+                            "query": content_result.content,
+                        })
+
+                 
                     recommended_products = ""
                     product_success = False
                     product_error = ""
@@ -639,9 +661,11 @@ if __name__ == "__main__":
         description="职场生存优化师 - 墨凡 (化名)工作流配置",
         agent_type=AgentType.CUSTOM
     )
+
+    product_k3_code = "02.03.01"
     
     # 创建工作流
-    workflow = WellnessWorkflow(config, persona_detail)
+    workflow = WellnessWorkflow(config, persona_detail, product_k3_code)
     
     # 运行完整工作流
     result = workflow.run_complete_workflow("")
