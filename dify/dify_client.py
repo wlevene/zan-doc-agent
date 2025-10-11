@@ -116,7 +116,7 @@ class DifyClient:
         发送阻塞模式的文本生成请求
         
         Args:
-            query: 用户输入的文本内容
+            query: 用户输入的文本内容（会自动添加到 inputs["query"] 中）
             inputs: 应用定义的变量值
             user: 用户标识
             files: 上传的文件列表
@@ -127,17 +127,21 @@ class DifyClient:
         Raises:
             DifyAPIError: API调用异常
         """
+        # 处理 inputs，确保 query 正确传递
+        final_inputs = inputs.copy() if inputs else {}
+        if query is not None:
+            final_inputs["query"] = query
+            
         return self._completion_messages(
-            query=query,
+            inputs=final_inputs,
             response_mode=ResponseMode.BLOCKING,
-            inputs=inputs,
             user=user,
             files=files
         )
     
     def completion_messages_streaming(
         self,
-        query: str,
+        query: str = None,
         inputs: Optional[Dict[str, Any]] = None,
         user: Optional[str] = None,
         files: Optional[List[FileInfo]] = None
@@ -146,7 +150,7 @@ class DifyClient:
         发送流式模式的文本生成请求
         
         Args:
-            query: 用户输入的文本内容
+            query: 用户输入的文本内容（会自动添加到 inputs["query"] 中）
             inputs: 应用定义的变量值
             user: 用户标识
             files: 上传的文件列表
@@ -159,10 +163,14 @@ class DifyClient:
         """
         url = f"{self.base_url}/completion-messages"
         
+        # 处理 inputs，确保 query 正确传递
+        final_inputs = inputs.copy() if inputs else {}
+        if query is not None:
+            final_inputs["query"] = query
+        
         # 构建请求数据
         data = {
-            "inputs": inputs or {},
-            "query": query,
+            "inputs": final_inputs,
             "response_mode": ResponseMode.STREAMING.value,
             "user": user or "default_user"
         }
@@ -206,9 +214,8 @@ class DifyClient:
     
     def _completion_messages(
         self,
-        query: str,
+        inputs: Dict[str, Any],
         response_mode: ResponseMode,
-        inputs: Optional[Dict[str, Any]] = None,
         user: Optional[str] = None,
         files: Optional[List[FileInfo]] = None
     ) -> Dict[str, Any]:
@@ -217,8 +224,7 @@ class DifyClient:
         
         # 构建请求数据
         data = {
-            "inputs": inputs or {},
-            "query": query,
+            "inputs": inputs,
             "response_mode": response_mode.value,
             "user": user or "default_user"
         }
@@ -226,6 +232,7 @@ class DifyClient:
         if files:
             data["files"] = [self._file_info_to_dict(f) for f in files]
         
+        print(f"## Request data: {data}")
         try:
             response = self.session.post(url, json=data)
             if not response.ok:

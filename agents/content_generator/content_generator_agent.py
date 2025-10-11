@@ -232,6 +232,7 @@ class ContentGeneratorAgent(BaseAgent):
             
             # 添加query到inputs中（某些Dify应用需要）
             final_inputs["query"] = query
+            final_inputs["date"] = datetime.now().strftime("%Y-%m-%d")
             
             # 将所有其他参数添加到inputs中（除了特殊参数）
             special_params = {'query', 'inputs', 'user'}

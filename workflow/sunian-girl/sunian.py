@@ -16,15 +16,12 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
-# 先导入本地模块
-try:
-    from .content_item import ContentCollector
-except ImportError:
-    from content_item import ContentCollector
-
-# 添加项目根目录到Python路径
+# 添加项目根目录到Python路径（必须在导入本地模块之前）
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
+
+# 导入通用模块
+from workflow.base_workflow import ContentItem, ContentCollector
 
 # 导入所有需要的agent
 from agents.wellness.wellness_mom_agent import WellnessMomAgent
@@ -633,13 +630,13 @@ class WellnessWorkflow:
 # 使用示例
 if __name__ == "__main__":
     
-    # 定义人物画像
-    persona_detail = """苏念，三十二岁，视觉年龄约二十五岁。身高168cm，体重49公斤，体态纤薄而富有核心力量感，这是常年瑜伽与负重徒步的结果。作为苏州一家精品露营品牌的主理人，她的右肩有一处旧伤，在长时间负重或天气骤变时会发出隐痛警报；肠胃也因不规律的营地饮食变得敏感，"""
+    # 从配置文件中导入人物画像
+    from workflow.configs.sunian_config import persona_detail
     
     # 配置
     config = AgentConfig(
-        name="wellness_workflow",
-        description="职场生存优化师 - 墨凡 (化名)工作流配置",
+        name="sunian_workflow",
+        description="素年养生工作流配置",
         agent_type=AgentType.CUSTOM
     )
     

@@ -16,15 +16,12 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
-# 先导入本地模块
-try:
-    from .content_item import ContentCollector
-except ImportError:
-    from content_item import ContentCollector
-
-# 添加项目根目录到Python路径
+# 添加项目根目录到Python路径（必须在导入本地模块之前）
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
+
+# 导入本地模块
+from workflow.base_workflow import ContentItem, ContentCollector
 
 # 导入所有需要的agent
 from agents.wellness.wellness_mom_agent import WellnessMomAgent
@@ -633,9 +630,9 @@ class WellnessWorkflow:
 # 使用示例
 if __name__ == "__main__":
     
-    # 定义人物画像
-    persona_detail = """墨凡，28岁的前科技公司总监，因过劳导致突发性耳聋后，转型为独立的“职场生存优化师”。他外表精致，生活方式是现代科技与东方养生的结合。其女友林溪是位自然随性的花艺师，是他紧绷生活中的温柔锚点。他的父亲则代表传统奋斗观，曾对他转型深感不解。墨凡致力于帮助如从前的自己一样的职场人，在高效工作的同时，找到健康与生活的平衡。"""
-      
+    # 从配置文件中导入人物画像
+    from workflow.configs.workmen_config import persona_detail
+    
     # 配置
     config = AgentConfig(
         name="wellness_workflow",

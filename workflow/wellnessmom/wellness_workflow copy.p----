@@ -281,31 +281,11 @@ class WellnessWorkflow:
                     # 为空则使用现在逻辑通过product_recommender来生成
 
 
-                    if self.product_k3_code:
-                        # 直接使用指定的K3编码获取商品信息
-                        product_info = self.product_db.get_product_by_k3_code(self.product_k3_code)
-                        if product_info:
-                            # 构造与推荐器相同格式的响应
-                            product_data = {"goods": product_info.to_dict()}
-                            product_result = type('AgentResponse', (), {
-                                'success': True,
-                                'content': json.dumps(product_data, ensure_ascii=False, indent=2),
-                                'error': None
-                            })()
-                        else:
-                            # 如果找不到商品，创建失败响应
-                            product_result = type('AgentResponse', (), {
-                                'success': False,
-                                'content': "",
-                                'error': f"未找到K3编码为 {self.product_k3_code} 的商品"
-                            })()
-                    else:
-                        # 使用推荐器获取商品
-                        product_result = self.product_recommender.process({
-                            "query": content_result.content,
-                        })
 
-                 
+                    # 商品推荐
+                    product_result = self.product_recommender.process({
+                        "query": content_result.content,
+                    })
                     recommended_products = ""
                     product_success = False
                     product_error = ""

@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from dify.dify_client import DifyClient, DifyAPIError
+from datetime import datetime
+from agents.product_recommender.product_database import ProductDatabase
 
 
 class AgentType(Enum):
@@ -178,7 +180,7 @@ class ScenarioGeneratorAgent(BaseAgent):
     
     def __init__(self, 
                  endpoint: str = "http://119.45.130.88:8080/v1",
-                 app_key: str = "app-7r3AN12NjvAeXOqTckw4AP6u"):
+                 app_key: str = "app-AqCx801U23UaSywIF4zNvhXs"):
         """
         初始化场景生成器
         
@@ -198,8 +200,15 @@ class ScenarioGeneratorAgent(BaseAgent):
             agent_type=AgentType.SCENARIO_GENERATOR
         )
         
+        # 初始化商品数据库（用于通过 K3 编码查询商品信息）
+        self.product_db = ProductDatabase()
+        
         super().__init__(dify_client, config)
     
+    def set_k3code(self, k3_code: str):
+        """设置产品K3代码"""
+        self.product_k3_code = k3_code
+        
     def process(self, params: Dict[str, Any]) -> AgentResponse:
         """生成场景内容
         
@@ -222,9 +231,16 @@ class ScenarioGeneratorAgent(BaseAgent):
             
             # 准备输入参数
             final_inputs = self._prepare_inputs(inputs)
-            
-            # 添加query到inputs中（某些Dify应用需要）
-            final_inputs["query"] = query
+            print(f"final_inputs 1: {final_inputs}")
+            final_inputs["date"] = datetime.now().strftime("%Y-%m-%d")
+            print(f"final_inputs 2: {final_inputs}")
+            # 根据 K3 编码查询商品信息并加入到 inputs 中
+            if getattr(self, "product_k3_code", None):
+                k3_code = str(self.product_k3_code).strip()
+                product_info_obj = self.product_db.get_product_by_k3_code(k3_code)
+                if product_info_obj:
+                    # 仅注入字符串：商品名称 + 卖点
+                    final_inputs["product"] = f"商品：{product_info_obj.name}；卖点：{product_info_obj.product_selling_points}"
             
             # 将所有其他参数添加到inputs中（除了特殊参数）
             special_params = {'query', 'inputs', 'user'}
@@ -234,8 +250,9 @@ class ScenarioGeneratorAgent(BaseAgent):
             
             # 构建查询
             full_query = self._build_scenario_query(query, scenario_type, target_audience)
-            # print(f"full_query: {full_query}")
+            print(f"full_query: {full_query}")
             
+            print(f"final_inputs 22: {final_inputs}")
             # 调用 Dify API
             raw_response = self.client.completion_messages_blocking(
                 query=full_query,
