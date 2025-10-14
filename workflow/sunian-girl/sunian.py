@@ -50,7 +50,7 @@ class WorkflowResult:
 class WellnessWorkflow:
     """工作流程"""
     
-    def __init__(self, config: AgentConfig, persona_detail: str):
+    def __init__(self, config: AgentConfig, persona_detail: str, product_k3_code: str):
         """初始化工作流"""
         self.config = config
         self.product_db = ProductDatabase()
@@ -662,7 +662,7 @@ if __name__ == "__main__":
         agent_type=AgentType.CUSTOM
     )
     
-    product_k3_code = "02.03.01"
+    product_k3_code = "21.13.61"
     # 创建工作流
     workflow = WellnessWorkflow(config, persona_detail, product_k3_code)
     
