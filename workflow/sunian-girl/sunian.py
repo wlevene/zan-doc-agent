@@ -109,8 +109,8 @@ class WellnessWorkflow:
             for scenario in scenario_array:
                 index = index + 1
 
-                if index > 1:
-                    break
+                # if index > 1:
+                #     break
                 print(f"\n🔍 开始处理场景: {scenario}")
                 try:
                     # 场景验证

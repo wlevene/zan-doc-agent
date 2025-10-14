@@ -150,7 +150,7 @@ class ContentCollector:
         
         if filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"wellness_content_{timestamp}.xlsx"
+            filename = f"content_{timestamp}.xlsx"
         
         filepath = os.path.join(self.output_dir, filename)
         
