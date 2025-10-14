@@ -652,8 +652,8 @@ class WorkmenWorkflow:
 # 使用示例
 if __name__ == "__main__":
     
-    # 从配置文件中导入人物画像
-    from workflow.configs.workmen_config import persona_detail
+    # 从配置文件中导入人物画像和产品K3代码
+    from workflow.configs.workmen_config import persona_detail, product_k3_code
     
     # 配置
     config = AgentConfig(
@@ -661,8 +661,6 @@ if __name__ == "__main__":
         description="职场生存优化师 - 墨凡 (化名)工作流配置",
         agent_type=AgentType.CUSTOM
     )
-
-    product_k3_code = "21.13.61"
     
     # 创建工作流
     workflow = WorkmenWorkflow(config, persona_detail, product_k3_code)
