@@ -47,7 +47,7 @@ class WorkflowResult:
     error: Optional[str] = None
 
 
-class WellnessWorkflow:
+class WorkmenWorkflow:
     """工作流程"""
     
     def __init__(self, config: AgentConfig, persona_detail: str, product_k3_code: str):
@@ -665,7 +665,7 @@ if __name__ == "__main__":
     product_k3_code = "21.13.61"
     
     # 创建工作流
-    workflow = WellnessWorkflow(config, persona_detail, product_k3_code)
+    workflow = WorkmenWorkflow(config, persona_detail, product_k3_code)
     
     # 运行完整工作流
     result = workflow.run_complete_workflow("")

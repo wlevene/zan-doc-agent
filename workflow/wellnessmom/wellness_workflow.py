@@ -665,7 +665,7 @@ if __name__ == "__main__":
     # 配置
     config = AgentConfig(
         name="wellnessmom_workflow",
-        description="雨晴妈妈养生工作流配置",
+        description="养生妈妈工作流配置",
         agent_type=AgentType.CUSTOM
     )
 
