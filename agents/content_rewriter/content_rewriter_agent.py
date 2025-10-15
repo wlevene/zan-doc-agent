@@ -158,7 +158,8 @@ class ContentRewriterAgent(BaseAgent):
     
     def __init__(self, 
                  endpoint: str = "http://119.45.130.88:8080/v1",
-                 app_key: str = "app-7aKaGK6AL5WXWdlDpwP7cgIF"):
+                 app_key: str = "app-101VybDLh2XENcIlg6WMTgYC"):
+                #  app_key: str = "app-7aKaGK6AL5WXWdlDpwP7cgIF"):
         """初始化文案重写大师Agent
         
         Args:

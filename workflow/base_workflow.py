@@ -4,6 +4,9 @@ import pandas as pd
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
+from openpyxl.utils import get_column_letter
 
 # 导入所需的代理类
 from agents.wellness.wellness_mom_agent import WellnessMomAgent
@@ -114,24 +117,38 @@ class ContentCollector:
         # 否则使用content作为原始文案
         return item.content_data.get("content", "")
     
-    def _clean_text_for_excel(self, text: str) -> str:
-        """清理文本，确保Excel中不会出现多行"""
+    def _clean_text_for_excel(self, text: str, preserve_newlines: bool = True) -> str:
+        """清理文本，可选择是否保留换行符
+        
+        Args:
+            text: 要清理的文本
+            preserve_newlines: 是否保留换行符，默认为True
+        """
         if not text:
             return ""
         
         # 转换为字符串（防止非字符串类型）
         text = str(text)
         
-        # 替换所有可能导致换行的字符
-        text = text.replace('\n', ' ')  # 换行符替换为空格
-        text = text.replace('\r', ' ')  # 回车符替换为空格
-        text = text.replace('\t', ' ')  # 制表符替换为空格
-        
-        # 清理多余的空格
-        text = ' '.join(text.split())
-        
-        # 移除可能导致Excel解析问题的字符
-        text = text.replace('"', "'")  # 双引号替换为单引号
+        if preserve_newlines:
+            # 保留换行符，只清理其他问题字符
+            text = text.replace('\r', '')  # 移除回车符（保留\n）
+            text = text.replace('\t', ' ')  # 制表符替换为空格
+            # 移除可能导致Excel解析问题的字符
+            text = text.replace('"', "'")  # 双引号替换为单引号
+            # 清理每行的多余空格，但保留换行结构
+            lines = text.split('\n')
+            cleaned_lines = [' '.join(line.split()) for line in lines]
+            text = '\n'.join(cleaned_lines)
+        else:
+            # 原有逻辑：移除所有换行符
+            text = text.replace('\n', ' ')  # 换行符替换为空格
+            text = text.replace('\r', ' ')  # 回车符替换为空格
+            text = text.replace('\t', ' ')  # 制表符替换为空格
+            # 清理多余的空格
+            text = ' '.join(text.split())
+            # 移除可能导致Excel解析问题的字符
+            text = text.replace('"', "'")  # 双引号替换为单引号
         
         return text
     
@@ -143,8 +160,13 @@ class ContentCollector:
         """获取收集的数据总数（与 __len__ 功能相同）"""
         return len(self.items)
     
-    def export_to_excel(self, filename: str = None) -> Optional[str]:
-        """导出数据到Excel文件"""
+    def export_to_excel(self, filename: str = None, preserve_newlines: bool = True) -> Optional[str]:
+        """导出数据到Excel文件，支持保留换行符
+        
+        Args:
+            filename: Excel文件名，如果为None则自动生成
+            preserve_newlines: 是否保留换行符，默认为True
+        """
         if not self.items:
             return None
         
@@ -155,113 +177,165 @@ class ContentCollector:
         filepath = os.path.join(self.output_dir, filename)
         
         try:
-            # 准备数据
-            data_rows = []
-            for item in self.items:
-                row = {
-                    "用户输入": self._clean_text_for_excel(item.user_input),
-                    "人设详情": self._clean_text_for_excel(item.persona_detail),
-                    "场景内容": self._clean_text_for_excel(item.scenario_data.get("content", "") if item.scenario_data else ""),
-                    "场景验收结果": "通过" if item.scenario_validation_result else "未通过",
-                    "场景验收原因": self._clean_text_for_excel(item.scenario_validation_reason),
-                    "文案内容": self._clean_text_for_excel(self._get_original_content(item)),
-                    "文案验收结果": "通过" if item.content_validation_result else "未通过",
-                    "文案验收原因": self._clean_text_for_excel(item.content_validation_data.get("validation_reason", "") if item.content_validation_data else ""),
-                    "重写后文案": self._clean_text_for_excel(item.content_data.get("content", "") if item.content_data else ""),
-                    "K3编码": self._clean_text_for_excel(item.k3_code),
-                    # 商品信息将在后面统一添加，保持K3编码和产品名称相邻
-                    "商品推荐原因": self._clean_text_for_excel(item.product_recommendation_reason),
-                    "商品推荐成功": "是" if item.product_recommendation_success else "否",
-                    "商品推荐错误": self._clean_text_for_excel(item.product_recommendation_error),
-                    "处理阶段": self._clean_text_for_excel(item.processing_stage),
-                    "最终状态": self._clean_text_for_excel(item.final_status),
-                    "创建时间": self._clean_text_for_excel(item.created_at)
-                }
+            # 创建工作簿和工作表
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "文案数据"
+            
+            # 定义列标题和顺序
+            headers = [
+                "用户输入", "人设详情", "场景内容", "场景验收结果", "场景验收原因",
+                "文案内容", "文案验收结果", "文案验收原因", "重写后文案",
+                "K3编码", "产品名称", "产品描述", "产品价格",
+                "商品推荐原因", "商品推荐成功", "商品推荐错误", "处理阶段", "最终状态", "创建时间"
+            ]
+            
+            # 设置标题行样式
+            header_font = Font(bold=True, color="FFFFFF")
+            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            header_alignment = Alignment(horizontal="center", vertical="center")
+            
+            # 写入标题行
+            for col_idx, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col_idx, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+            
+            # 定义内容样式
+            content_font = Font(size=10)
+            content_alignment = Alignment(
+                horizontal="left", 
+                vertical="top", 
+                wrap_text=True  # 启用自动换行
+            )
+            
+            # 写入数据行
+            for row_idx, item in enumerate(self.items, 2):
+                # 准备行数据
+                row_data = self._prepare_row_data(item, preserve_newlines)
                 
-                # 解析推荐商品信息（单商品模式）
-                product_id = ""
-                product_name = ""
-                product_description = ""
-                product_price = ""
-                
-                # 优先使用ContentItem中已解析的product_name字段
-                if item.product_name:
-                    product_name = self._clean_text_for_excel(item.product_name)
-                
-                # 如果product_name为空，则从recommended_products解析
-                if not product_name and item.recommended_products:
-                    # 检查 recommended_products 是字符串还是字典
-                    if isinstance(item.recommended_products, str):
-                        # 如果是字符串，尝试解析为JSON
-                        try:
-                            product_data = json.loads(item.recommended_products)
-                            
-                            # 处理单个商品字典格式
-                            if isinstance(product_data, dict):
-                                product_id = self._clean_text_for_excel(str(product_data.get('id', '')))
-                                if not product_name:  # 只有在product_name为空时才从这里获取
-                                    product_name = self._clean_text_for_excel(str(product_data.get('name', '')))
-                                product_description = self._clean_text_for_excel(str(product_data.get('description', product_data.get('desc', ''))))
-                                product_price = self._clean_text_for_excel(str(product_data.get('price', '')))
-                                
-                        except (json.JSONDecodeError, AttributeError):
-                            # 如果解析失败，将整个字符串作为商品名称
-                            if not product_name:
-                                product_name = self._clean_text_for_excel(str(item.recommended_products))
-                    elif isinstance(item.recommended_products, dict):
-                        # 如果直接是字典格式
-                        product_id = self._clean_text_for_excel(str(item.recommended_products.get('id', '')))
-                        if not product_name:
-                            product_name = self._clean_text_for_excel(str(item.recommended_products.get('name', '')))
-                        product_description = self._clean_text_for_excel(str(item.recommended_products.get('description', item.recommended_products.get('desc', ''))))
-                        product_price = self._clean_text_for_excel(str(item.recommended_products.get('price', '')))
-                    elif isinstance(item.recommended_products, list) and len(item.recommended_products) > 0:
-                        # 如果是列表格式，取第一个元素
-                        first_product = item.recommended_products[0]
-                        if isinstance(first_product, dict):
-                            product_id = self._clean_text_for_excel(str(first_product.get('id', '')))
-                            if not product_name:
-                                product_name = self._clean_text_for_excel(str(first_product.get('name', '')))
-                            product_description = self._clean_text_for_excel(str(first_product.get('description', first_product.get('desc', ''))))
-                            product_price = self._clean_text_for_excel(str(first_product.get('price', '')))
+                # 写入每个单元格
+                for col_idx, header in enumerate(headers, 1):
+                    cell_value = row_data.get(header, "")
+                    cell = ws.cell(row=row_idx, column=col_idx, value=cell_value)
+                    cell.font = content_font
+                    cell.alignment = content_alignment
                     
-                    # 添加商品信息到行数据中
-                    row["产品名称"] = product_name
-                    row["产品描述"] = product_description
-                    row["产品价格"] = product_price
-                
-                # 确保所有行都有产品名称字段
-                if "产品名称" not in row:
-                    row["产品名称"] = self._clean_text_for_excel(item.product_name)
-                    row["产品描述"] = self._clean_text_for_excel(item.product_selling_points)
-                    row["产品价格"] = self._clean_text_for_excel(item.product_price)
-                
-                # 调整列顺序，确保K3编码和产品信息相邻
-                ordered_row = {}
-                # 先添加前9列
-                for key in ["用户输入", "人设详情", "场景内容", "场景验收结果", "场景验收原因",
-                           "文案内容", "文案验收结果", "文案验收原因", "重写后文案"]:
-                    ordered_row[key] = row[key]
-                # 添加产品相关信息
-                for key in ["K3编码", "产品名称", "产品描述", "产品价格"]:
-                    if key in row:
-                        ordered_row[key] = row[key]
-                    else:
-                        ordered_row[key] = ""
-                # 添加剩余列
-                for key in ["商品推荐原因", "商品推荐成功", "商品推荐错误", "处理阶段", "最终状态", "创建时间"]:
-                    ordered_row[key] = row[key]
-                
-                data_rows.append(ordered_row)
+                    # 对于包含换行符的单元格，调整行高
+                    if preserve_newlines and cell_value and '\n' in str(cell_value):
+                        line_count = str(cell_value).count('\n') + 1
+                        # 根据行数调整行高（每行约15像素）
+                        ws.row_dimensions[row_idx].height = max(20, line_count * 15)
             
-            # 创建DataFrame并导出到Excel
-            df = pd.DataFrame(data_rows)
-            df.to_excel(filepath, index=False)
+            # 调整列宽
+            self._adjust_column_widths(ws, headers)
             
+            # 保存文件
+            wb.save(filepath)
             return filepath
+            
         except Exception as e:
             print(f"导出Excel失败: {str(e)}")
             return None
+    
+    def _prepare_row_data(self, item: ContentItem, preserve_newlines: bool = True) -> Dict[str, str]:
+        """准备单行数据"""
+        # 解析推荐商品信息
+        product_name, product_description, product_price = self._parse_product_info(item, preserve_newlines)
+        
+        return {
+            "用户输入": self._clean_text_for_excel(item.user_input, preserve_newlines),
+            "人设详情": self._clean_text_for_excel(item.persona_detail, preserve_newlines),
+            "场景内容": self._clean_text_for_excel(item.scenario_data.get("content", "") if item.scenario_data else "", preserve_newlines),
+            "场景验收结果": "通过" if item.scenario_validation_result else "未通过",
+            "场景验收原因": self._clean_text_for_excel(item.scenario_validation_reason, preserve_newlines),
+            "文案内容": self._clean_text_for_excel(self._get_original_content(item), preserve_newlines),
+            "文案验收结果": "通过" if item.content_validation_result else "未通过",
+            "文案验收原因": self._clean_text_for_excel(item.content_validation_data.get("validation_reason", "") if item.content_validation_data else "", preserve_newlines),
+            "重写后文案": self._clean_text_for_excel(item.content_data.get("content", "") if item.content_data else "", preserve_newlines),
+            "K3编码": self._clean_text_for_excel(item.k3_code, preserve_newlines),
+            "产品名称": product_name,
+            "产品描述": product_description,
+            "产品价格": product_price,
+            "商品推荐原因": self._clean_text_for_excel(item.product_recommendation_reason, preserve_newlines),
+            "商品推荐成功": "是" if item.product_recommendation_success else "否",
+            "商品推荐错误": self._clean_text_for_excel(item.product_recommendation_error, preserve_newlines),
+            "处理阶段": self._clean_text_for_excel(item.processing_stage, preserve_newlines),
+            "最终状态": self._clean_text_for_excel(item.final_status, preserve_newlines),
+            "创建时间": self._clean_text_for_excel(item.created_at, preserve_newlines)
+        }
+    
+    def _parse_product_info(self, item: ContentItem, preserve_newlines: bool = True) -> tuple:
+        """解析商品信息，返回(产品名称, 产品描述, 产品价格)"""
+        product_name = ""
+        product_description = ""
+        product_price = ""
+        
+        # 优先使用ContentItem中已解析的product_name字段
+        if item.product_name:
+            product_name = self._clean_text_for_excel(item.product_name, preserve_newlines)
+        
+        # 如果product_name为空，则从recommended_products解析
+        if not product_name and item.recommended_products:
+            if isinstance(item.recommended_products, str):
+                try:
+                    product_data = json.loads(item.recommended_products)
+                    if isinstance(product_data, dict):
+                        product_name = self._clean_text_for_excel(str(product_data.get('name', '')), preserve_newlines)
+                        product_description = self._clean_text_for_excel(str(product_data.get('description', product_data.get('desc', ''))), preserve_newlines)
+                        product_price = self._clean_text_for_excel(str(product_data.get('price', '')), preserve_newlines)
+                except (json.JSONDecodeError, AttributeError):
+                    product_name = self._clean_text_for_excel(str(item.recommended_products), preserve_newlines)
+            elif isinstance(item.recommended_products, dict):
+                product_name = self._clean_text_for_excel(str(item.recommended_products.get('name', '')), preserve_newlines)
+                product_description = self._clean_text_for_excel(str(item.recommended_products.get('description', item.recommended_products.get('desc', ''))), preserve_newlines)
+                product_price = self._clean_text_for_excel(str(item.recommended_products.get('price', '')), preserve_newlines)
+            elif isinstance(item.recommended_products, list) and len(item.recommended_products) > 0:
+                first_product = item.recommended_products[0]
+                if isinstance(first_product, dict):
+                    product_name = self._clean_text_for_excel(str(first_product.get('name', '')), preserve_newlines)
+                    product_description = self._clean_text_for_excel(str(first_product.get('description', first_product.get('desc', ''))), preserve_newlines)
+                    product_price = self._clean_text_for_excel(str(first_product.get('price', '')), preserve_newlines)
+        
+        # 如果仍然为空，使用ContentItem中的其他字段
+        if not product_name:
+            product_name = self._clean_text_for_excel(item.product_name, preserve_newlines)
+        if not product_description:
+            product_description = self._clean_text_for_excel(item.product_selling_points, preserve_newlines)
+        if not product_price:
+            product_price = self._clean_text_for_excel(item.product_price, preserve_newlines)
+        
+        return product_name, product_description, product_price
+    
+    def _adjust_column_widths(self, ws, headers):
+        """调整列宽"""
+        column_widths = {
+            "用户输入": 20,
+            "人设详情": 30,
+            "场景内容": 40,
+            "场景验收结果": 12,
+            "场景验收原因": 30,
+            "文案内容": 50,
+            "文案验收结果": 12,
+            "文案验收原因": 30,
+            "重写后文案": 50,
+            "K3编码": 15,
+            "产品名称": 25,
+            "产品描述": 40,
+            "产品价格": 12,
+            "商品推荐原因": 30,
+            "商品推荐成功": 12,
+            "商品推荐错误": 30,
+            "处理阶段": 15,
+            "最终状态": 12,
+            "创建时间": 20
+        }
+        
+        for col_idx, header in enumerate(headers, 1):
+            column_letter = get_column_letter(col_idx)
+            width = column_widths.get(header, 15)
+            ws.column_dimensions[column_letter].width = width
 
 
 class BaseWellnessWorkflow:
