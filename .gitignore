@@ -7,3 +7,4 @@ scenario_generator_agent.cpython-312.pyc
 workflow/sunian-girl/output
 workflow/output
 workflow/workmen/output
+*.log
