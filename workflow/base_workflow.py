@@ -68,12 +68,13 @@ class ContentItem:
 class ContentCollector:
     """文案数据收集器"""
     
-    def __init__(self, output_dir=None):
+    def __init__(self, output_dir=None, k3_code=None):
         self.items: List[ContentItem] = []
         # 如果没有提供输出目录，则使用当前文件所在目录下的output目录
         if output_dir is None:
             output_dir = os.path.join(os.path.dirname(__file__), "output")
         self.output_dir = output_dir
+        self.k3_code = k3_code  # 存储K3编码用于文件名生成
         os.makedirs(self.output_dir, exist_ok=True)
     
     def add_content(self, **kwargs) -> None:
@@ -171,8 +172,14 @@ class ContentCollector:
             return None
         
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"content_{timestamp}.xlsx"
+            if self.k3_code:
+                # 优先使用K3编码作为文件名
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{self.k3_code}_{timestamp}.xlsx"
+            else:
+                # 如果没有K3编码，则使用原来的时间戳方式
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{timestamp}.xlsx"
         
         filepath = os.path.join(self.output_dir, filename)
         

@@ -79,7 +79,7 @@ class WellnessWorkflow:
         self.product_recommendation_validator = ProductRecommendationValidatorAgent(base_url, api_key)
         
         # 初始化数据收集器
-        self.content_collector = ContentCollector()
+        self.content_collector = ContentCollector(k3_code=self.product_k3_code)
         
         logger.info("养生妈妈工作流初始化完成")
     
